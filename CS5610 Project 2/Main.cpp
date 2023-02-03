@@ -29,6 +29,7 @@ int mouseX, mouseY;
 int width, height;
 cy::GLSLProgram prog;
 int numVertices;
+int numElem;
 
 
 int main(int argc, char* argv[])
@@ -41,7 +42,7 @@ int main(int argc, char* argv[])
     **/
     leftMouse = false; rightMouse = false;
     mouseX = 0; mouseY = 0;
-    numVertices = 0;
+    numVertices = 0, numElem = 0;
 
     // check for obj  file in arguments - this is required for this program
     cy::TriMesh mesh;
@@ -98,34 +99,57 @@ int main(int argc, char* argv[])
     GLclampf Red = 0.0f, Green = 0.0f, Blue = 0.0f, Alpha = 0.0f; // sourced from: https://youtu.be/6dtqg0r28Yc
     glClearColor(Red, Green, Blue, Alpha);
 
-    // Create buffers
-    GLuint vbo[1];
+    // Initalize buffers
+    GLuint vbo;
     GLuint vao;
+    GLuint ebuffer;
+    GLuint nbuffer;
+
+    // initalize vertices
     numVertices = mesh.NV();
     std::cout << "numVecs: " << numVertices << "\n";
     // A vector of vertices of the mesh
-    std::vector<cy::Vec3f> Vertices = {};
+    std::vector<cy::Vec3f> vertices = {};
     for (int i = 0; i < numVertices; i++)
     {
-        Vertices.push_back(mesh.V(i));
+        vertices.push_back(mesh.V(i));
         // std::cout << "index: " << i << "\n";
     }
 
-    // for testing
-    int i = 60;
-    std::cout << i << "th Point: (" << Vertices[i][0] << ", " << Vertices[i][1] << ", " << Vertices[i][2] << ") \n";
+    // initalize elements
+    // A vector of triangular elements of the mesh
+    numElem = mesh.NF();
+    std::cout << "numElem: " << numElem << "\n";
+    std::vector<cy::TriMesh::TriFace> elem = {};
+    for (int i = 0; i < numElem; i++)
+    {
+        elem.push_back(mesh.F(i));
+    }
+    // multiply numElem to account for the mesh returning the number of faces, not values
+    numElem *= 3;
 
+    // initalize normals
+
+
+    // create VAO
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
 
-    glGenBuffers(2, vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+    // create VBO
+    glGenBuffers(1, &vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
     std::cout << "waiting for buffer...\n";
-    glBufferData(GL_ARRAY_BUFFER, Vertices.size() * sizeof(cy::Vec3f), &Vertices[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(cy::Vec3f), &vertices[0], GL_STATIC_DRAW);
     std::cout << "buffer complete.\n";
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
-    
+
+    // creat element buffer
+    glGenBuffers(1, &ebuffer);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebuffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, elem.size() * sizeof(cy::TriMesh::TriFace), &elem[0], GL_STATIC_DRAW);
+
+    // create normal buffer (for vertex shader)
 
     
 
@@ -143,7 +167,8 @@ int main(int argc, char* argv[])
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     prog.Bind();
     std::cout << "waiting to draw...\n";
-    glDrawArrays(GL_POINTS, 0, Vertices.size());
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebuffer);
+    glDrawElements(GL_TRIANGLES, numElem, GL_UNSIGNED_INT, 0);
     glutSwapBuffers();
 
     // Call main loop
@@ -161,7 +186,7 @@ void drawNewFrame()
     // call draw function
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     // std::cout << "drawing new...\n";
-    glDrawArrays(GL_POINTS, 0, numVertices);
+    glDrawElements(GL_TRIANGLES, numElem, GL_UNSIGNED_INT, 0);
     glutSwapBuffers();
     return;
 }
@@ -201,26 +226,9 @@ void mouseButtonTracker(int button, int state, int x, int y)
 {
     switch (button) {
     case 0:
-        /*if (!state)
-        {
-            std::cout << "User pressed left click.\n";
-        }
-        else
-        {
-            std::cout << "User released left click.\n";
-        }*/
         leftMouse = !state;
         break;
     case 2:
-        /*if (!state)
-        {
-
-            std::cout << "User pressed right click.\n";
-        }
-        else
-        {
-            std::cout << "User released right click.\n";
-        }*/
         rightMouse = !state;
         break;
     }
@@ -273,8 +281,8 @@ void idleCallback()
     if (leftMouse)
     {
         // std::cout << "leftMouse drag.\nChange in Y: " << (prevMouseY - mouseY) << "\n";
-        float yDelt = float(mouseY - prevMouseY) / (0.1*height);
-        float xDelt = float(mouseX - prevMouseX) / (0.1*width);
+        float yDelt = float(mouseY - prevMouseY) / (0.2*height);
+        float xDelt = float(mouseX - prevMouseX) / (0.2*width);
         if (xRot < 180.0f)
         {
             yRot += yDelt;
@@ -332,37 +340,6 @@ void idleCallback()
     glutPostRedisplay();
 }
 
-/**
-* 
-* This method initializes the vertex buffers
-* source: https://ogldev.org/www/tutorial02/tutorial02.html
-* 
-**/
-static void CreateVBO(UINT &vbo, const std::vector<cy::Vec3f> vertices)
-{
-    glCreateBuffers(1, &vbo);
-
-    glNamedBufferStorage(vbo, vertices.size() * sizeof(cy::Vec3f), vertices.data(), 0);
-    glEnableVertexAttribArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-}
-
-/**
-*
-* This method initializes the vertex arrays
-* source: https://yaakuro.gitbook.io/opengl-4-5/vertex-array-object-vao
-*
-**/
-static void CreateVAO(UINT &vao, UINT &vbo, const std::vector<cy::Vec3f> vertices)
-{
-    glCreateVertexArrays(1, &vao);
-    glVertexArrayVertexBuffer(vao, 0, vbo, 0, sizeof(cy::Vec3f));
-    glVertexArrayAttribBinding(vao, 0, 0);
-    glVertexArrayAttribFormat(vao, 0, 3, GL_FLOAT, GL_FALSE, offsetof(cy::Vec3f, x));
-    glVertexArrayBindingDivisor(vao, 0, 0);
-    glEnableVertexArrayAttrib(vao, 0);
-}
 
 /**
 * 
