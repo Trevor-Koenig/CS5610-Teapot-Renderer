@@ -324,14 +324,14 @@ void idleCallback()
 
     // std::cout << "yRot: " << yRot << "\n";
     cy::Matrix3f rotMatrix = cy::Matrix3f::RotationXYZ(yRot, xRot, 0);
-    cy::Vec3f pos = cy::Vec3f(0, 0, 50);
     cy::Matrix4f projMatrix = cy::Matrix4f::Perspective(DEG2RAD(40), float(width) / float(height), 0.1f, 1000.0f);
     cy::Matrix4f scaleMatrix = cy::Matrix4f::Scale(cy::Vec3f(distance, distance, distance));
     cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, -5.5f));
-    // math from: https://ximera.osu.edu/mooculus/calculus3/workingInTwoAndThreeDimensions/digInDrawingASphere -> does not appear to be correct
+    cy::Vec3f pos = cy::Vec3f(0, 0, 50);
     cy::Matrix4f v = cy::Matrix4f::View(pos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
     cy::Matrix4f mvp = projMatrix * v * rotMatrix * scaleMatrix * trans;
 
+    // recompile shaders, set constants, and bind them
     prog.BuildFiles("Shaders\\shader.vert", "Shaders\\shader.frag");
     prog["mvp"] = mvp;
     prog.Bind();
