@@ -267,11 +267,30 @@ void idleCallback()
     static float zRot = 0;
     static float distance = 1.0f;
 
+    // true means camera is right side up
+    bool upDir = true;
+
     if (leftMouse)
     {
         // std::cout << "leftMouse drag.\nChange in Y: " << (prevMouseY - mouseY) << "\n";
-        yRot += float(mouseY - prevMouseY) / 4.0f;
-        xRot -= float(mouseX - prevMouseX) / 4.0f;
+        float yDelt = float(mouseY - prevMouseY) / (0.1*height);
+        float xDelt = float(mouseX - prevMouseX) / (0.1*width);
+        if (xRot < 180.0f)
+        {
+            yRot += yDelt;
+        }
+        else
+        {
+            yRot -= yDelt;
+        }
+        if (yRot, 180.0f)
+        {
+            xRot += xDelt;
+        }
+        else
+        {
+            xRot -= xDelt;
+        }
         // zRot -= float((mouseX - prevMouseX) + (mouseY - prevMouseY)) / 4.0f;
     }
     else if (rightMouse)
@@ -284,14 +303,26 @@ void idleCallback()
     prevMouseY = mouseY;
     prevMouseX = mouseX;
 
+    // clean up xRot and yRot
+    if (xRot >= 360.0f)
+    {
+        xRot = 0.0f;
+    }
+    if (yRot >= 360.0f)
+    {
+        yRot = 0.0f;
+    }
+
+
     // std::cout << "yRot: " << yRot << "\n";
-    cy::Matrix3f rotMatrix = cy::Matrix3f::RotationXYZ(0, 0, 0);
+    cy::Matrix3f rotMatrix = cy::Matrix3f::RotationXYZ(yRot, xRot, 0);
+    cy::Vec3f pos = cy::Vec3f(0, 0, 50);
     cy::Matrix4f projMatrix = cy::Matrix4f::Perspective(DEG2RAD(40), float(width) / float(height), 0.1f, 1000.0f);
-    cy::Matrix4f scaleMatrix = cy::Matrix4f::Scale(cy::Vec3f(1.0f, 1.0f, distance));
+    cy::Matrix4f scaleMatrix = cy::Matrix4f::Scale(cy::Vec3f(distance, distance, distance));
     cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, -1.0f));
     // math from: https://ximera.osu.edu/mooculus/calculus3/workingInTwoAndThreeDimensions/digInDrawingASphere -> does not appear to be correct
-    cy::Matrix4f v = cy::Matrix4f::View(cy::Vec3f(100*cos(DEG2RAD(yRot))*sin(DEG2RAD(xRot)), 100*sin(DEG2RAD(yRot))*sin(DEG2RAD(xRot)), 100*cos(DEG2RAD(xRot))), cy::Vec3f(0.0f, 0.0f, 5.5f), cy::Vec3f(0.0f, 1.0f, 0.0f));
-    cy::Matrix4f mvp = projMatrix * rotMatrix * scaleMatrix * v;
+    cy::Matrix4f v = cy::Matrix4f::View(pos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
+    cy::Matrix4f mvp = projMatrix * v * rotMatrix * scaleMatrix * trans;
 
     prog.BuildFiles("Shaders\\shader.vert", "Shaders\\shader.frag");
     prog["mvp"] = mvp;
