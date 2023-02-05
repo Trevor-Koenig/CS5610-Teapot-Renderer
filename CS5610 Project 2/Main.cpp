@@ -103,7 +103,7 @@ int main(int argc, char* argv[])
     GLuint vbo;
     GLuint vao;
     GLuint ebuffer;
-    GLuint nbuffer;
+    GLuint normbuffer;
 
     // initalize vertices
     numVertices = mesh.NV();
@@ -120,6 +120,7 @@ int main(int argc, char* argv[])
     // A vector of triangular elements of the mesh
     numElem = mesh.NF();
     std::cout << "numElem: " << numElem << "\n";
+    // a vector of elements of the mesh
     std::vector<cy::TriMesh::TriFace> elem = {};
     for (int i = 0; i < numElem; i++)
     {
@@ -129,28 +130,50 @@ int main(int argc, char* argv[])
     numElem *= 3;
 
     // initalize normals
-
+    int numNorm = numElem / 3;
+    std::vector<cy::Vec3f> normals = {};
+    for (int i = 0; i < numNorm; i++)
+    {
+        cy::Vec3f A = cy::Vec3f(vertices[elem[i].v[0]]);
+        cy::Vec3f B = cy::Vec3f(vertices[elem[i].v[1]]);
+        cy::Vec3f C = cy::Vec3f(vertices[elem[i].v[2]]);
+        cy::Vec3f normVec = (B-A)^(C-A);
+        normals.push_back(normVec.GetNormalized());
+    }
 
     // create VAO
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
 
+    // create normal buffer (for vertex shader)
+    glGenBuffers(1, &normbuffer);
+
     // create VBO
     glGenBuffers(1, &vbo);
+
+    // initalize VBO
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    std::cout << "waiting for buffer...\n";
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(cy::Vec3f), &vertices[0], GL_STATIC_DRAW);
-    std::cout << "buffer complete.\n";
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
+    
+    
+    // initialize normal buffer
+    glBindBuffer(GL_ARRAY_BUFFER, normbuffer);
+    glBufferData(GL_ARRAY_BUFFER, normals.size() * sizeof(cy::Vec3f), &normals[0], GL_STATIC_DRAW);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
 
     // creat element buffer
     glGenBuffers(1, &ebuffer);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebuffer);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, elem.size() * sizeof(cy::TriMesh::TriFace), &elem[0], GL_STATIC_DRAW);
 
-    // create normal buffer (for vertex shader)
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
+    glBindBuffer(GL_ARRAY_BUFFER, normbuffer);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
     
 
     // Create textures
@@ -160,15 +183,11 @@ int main(int argc, char* argv[])
     cy::GLSLProgram prog;
     prog.BuildFiles("Shaders\\shader.vert", "Shaders\\shader.frag");
 
-    // Other initializations
-    prog["mvp"] = cy::Matrix4f(0.05f, 0.0f, 0.0f, 0.0f, 0.0f, 0.05f, 0.0f, 0.0f, 0.0f, 0.0f, 0.05f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
-
     // call draw function
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     prog.Bind();
     std::cout << "waiting to draw...\n";
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebuffer);
-    glDrawElements(GL_TRIANGLES, numElem, GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLE_STRIP, numElem, GL_UNSIGNED_INT, 0);
     glutSwapBuffers();
 
     // Call main loop
@@ -186,7 +205,7 @@ void drawNewFrame()
     // call draw function
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     // std::cout << "drawing new...\n";
-    glDrawElements(GL_TRIANGLES, numElem, GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLE_STRIP, numElem, GL_UNSIGNED_INT, 0);
     glutSwapBuffers();
     return;
 }
@@ -328,12 +347,14 @@ void idleCallback()
     cy::Matrix4f scaleMatrix = cy::Matrix4f::Scale(cy::Vec3f(distance, distance, distance));
     cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, -5.5f));
     cy::Vec3f pos = cy::Vec3f(0, 0, 50);
-    cy::Matrix4f v = cy::Matrix4f::View(pos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
-    cy::Matrix4f mvp = projMatrix * v * rotMatrix * scaleMatrix * trans;
+    cy::Matrix4f view = cy::Matrix4f::View(pos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
+    cy::Matrix4f viewSpace = view * rotMatrix * scaleMatrix * trans;
+    cy::Matrix4f mvp = projMatrix * viewSpace;
 
     // recompile shaders, set constants, and bind them
     prog.BuildFiles("Shaders\\shader.vert", "Shaders\\shader.frag");
     prog["mvp"] = mvp;
+    prog["invTransView"] = viewSpace.GetTranspose().GetInverse();
     prog.Bind();
 
     // Tell GLUT to redraw
