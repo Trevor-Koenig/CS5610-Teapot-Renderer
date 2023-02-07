@@ -321,26 +321,31 @@ void idleCallback()
     else if (rightMouse)
     {
         // calculate distance of mouse moved (scale it so that it is easy to use)
-        distance += float((mouseX - prevMouseX) + (mouseY - prevMouseY)) / 500.0f;
+        // clamp distance to be above zero or else it appears to start coming closer when it should be moving away
+        distance = std::max(0.0f, distance + float((mouseX - prevMouseX) + (mouseY - prevMouseY)) / 500.0f);
         // std::cout << "rightMouse drag.\nChange in distance: " << distance << "\n";
     }
 
     prevMouseY = mouseY;
     prevMouseX = mouseX;
 
-    // clean up xRot and yRot
+    // clean up rotation values
     if (xRot >= 360.0f)
     {
-        xRot = 0.0f;
+        xRot = xRot - 360.0f;
     }
     if (yRot >= 360.0f)
     {
-        yRot = 0.0f;
+        yRot = yRot - 360.0f;
+    }
+    if (zRot >= 360.0f)
+    {
+        zRot = zRot - 360.0f;
     }
 
 
     // std::cout << "yRot: " << yRot << "\n";
-    cy::Matrix3f rotMatrix = cy::Matrix3f::RotationXYZ(yRot, xRot, 0);
+    cy::Matrix3f rotMatrix = cy::Matrix3f::RotationXYZ(yRot, xRot, zRot);
     cy::Matrix4f scaleMatrix = cy::Matrix4f::Scale(cy::Vec3f(distance, distance, distance));
     cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, -5.5f));
     cy::Vec3f viewPos = cy::Vec3f(0, 0, 50);
@@ -356,7 +361,7 @@ void idleCallback()
     prog["projection"] = projMatrix;
     // why does this work? - is it because it moves the light opposite of camera?
     prog["lightPos"] = (rotMatrix.GetInverse()) * cy::Vec3f(0, 100, 0);
-    prog["viewPos"] = viewPos;
+    prog["viewPos"] = (rotMatrix.GetInverse()) * viewPos;
     prog.Bind();
 
     // Tell GLUT to redraw

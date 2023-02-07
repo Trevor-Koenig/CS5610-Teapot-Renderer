@@ -15,33 +15,37 @@ uniform vec3 viewPos;
 vec3 objColor = vec3(1.0f, 0.0f, 0.0f);
 vec3 specColor = vec3(1.0, 1.0, 1.0);
 vec3 lightColor = vec3(1.0, 1.0, 1.0);
-float lightPower = 4.0;
-float shininess = 128.0;
+float lightPower = 5.0;
+float shininess = 256.0;
 
 void main()
 {
 
-  vec3 lightDir = lightPos - FragPos;
-  float distance = length(lightDir);
-  distance = distance * distance;
-  lightDir = normalize(lightDir);
+	vec3 lightDir = lightPos - FragPos;
+	float distance = length(lightDir);
+	distance = distance * distance;
+	lightDir = normalize(lightDir);
 
-  // ambient
-  float ambientStrength = 0.3f;
-  vec3 ambient = ambientStrength * lightColor;
+	// ambient
+	float ambientStrength = 0.3f;
+	vec3 ambient = ambientStrength * lightColor;
 
-  // Diffuse 
-  vec3 norm = normalize(Normal);
-  float diff = max(dot(norm, lightDir), 0.0);
-  vec3 diffuse = diff * lightColor;
+	// Diffuse 
+	vec3 norm = normalize(Normal);
+	float diff = max(dot(norm, lightDir), 0.0);
+	vec3 diffuse = diff * lightColor;
 
-  // Specular (blinn phong shading)
-  vec3 viewDir = normalize(viewPos - FragPos);
-  vec3 halfDir = normalize(lightDir + viewDir);
-  float specAngle = max(dot(halfDir, Normal), 0.0);
-  float specular = pow(specAngle, shininess);
+	// Specular (blinn phong shading)
+	float cosAngIncidence = dot(norm, lightDir);
+	cosAngIncidence = clamp(cosAngIncidence, 0, 1);
+	vec3 viewDir = normalize(viewPos);
+	vec3 halfDir = normalize(lightDir + viewDir);
+	float specAngle = max(dot(norm, halfDir), 0.0);
+	specAngle = clamp(specAngle, 0, 1);
+	specAngle = cosAngIncidence != 0.0 ? specAngle : 0.0;
+	vec3 specular = pow(specAngle, shininess) * specColor;
 
 
-  vec3 result = (ambient + diffuse) * objColor + specColor * specular * lightColor * lightPower;
-  color = vec4(result, 1.0f);
+	vec3 result = (ambient + diffuse) * objColor  + specular;
+	color = vec4(result, 1.0f);
 }
