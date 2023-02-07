@@ -70,6 +70,7 @@ int main(int argc, char* argv[])
     glutInitWindowPosition(100, 100);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
     glutCreateWindow("CS 5610 Project 2 - Transformations");
+    glEnable(GL_DEPTH_TEST);
 
     const char* versionGL = (const char*)glGetString(GL_VERSION);
     std::cout << "Current OpenGL version: " << versionGL << "\n";
@@ -132,13 +133,10 @@ int main(int argc, char* argv[])
     // initalize normals
     int numNorm = numElem / 3;
     std::vector<cy::Vec3f> normals = {};
+    mesh.ComputeNormals();
     for (int i = 0; i < numNorm; i++)
     {
-        cy::Vec3f A = cy::Vec3f(vertices[elem[i].v[0]]);
-        cy::Vec3f B = cy::Vec3f(vertices[elem[i].v[1]]);
-        cy::Vec3f C = cy::Vec3f(vertices[elem[i].v[2]]);
-        cy::Vec3f normVec = (B-A)^(C-A);
-        normals.push_back(normVec.GetNormalized());
+        normals.push_back(mesh.VN(i));
     }
 
     // create VAO
@@ -159,7 +157,6 @@ int main(int argc, char* argv[])
     // initialize normal buffer
     glBindBuffer(GL_ARRAY_BUFFER, normbuffer);
     glBufferData(GL_ARRAY_BUFFER, normals.size() * sizeof(cy::Vec3f), &normals[0], GL_STATIC_DRAW);
-    glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
 
     // creat element buffer
@@ -167,10 +164,11 @@ int main(int argc, char* argv[])
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebuffer);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, elem.size() * sizeof(cy::TriMesh::TriFace), &elem[0], GL_STATIC_DRAW);
 
+    // set up vao for the buffers
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
     glBindBuffer(GL_ARRAY_BUFFER, normbuffer);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
 
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
@@ -205,7 +203,7 @@ void drawNewFrame()
     // call draw function
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     // std::cout << "drawing new...\n";
-    glDrawElements(GL_TRIANGLE_STRIP, numElem, GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLES, numElem, GL_UNSIGNED_INT, 0);
     glutSwapBuffers();
     return;
 }
@@ -354,7 +352,7 @@ void idleCallback()
     // recompile shaders, set constants, and bind them
     prog.BuildFiles("Shaders\\shader.vert", "Shaders\\shader.frag");
     prog["mvp"] = mvp;
-    prog["invTransView"] = viewSpace.GetTranspose().GetInverse();
+    prog["invTransView"] = viewSpace.GetInverse().GetTranspose();
     prog.Bind();
 
     // Tell GLUT to redraw
