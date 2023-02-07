@@ -354,7 +354,8 @@ void idleCallback()
     prog["model"] = model;
     prog["view"] = view;
     prog["projection"] = projMatrix;
-    prog["lightPos"] = (rotMatrix.GetInverse()) * cy::Vec3f(0, 1000, 0);
+    // why does this work? - is it because it moves the light opposite of camera?
+    prog["lightPos"] = (rotMatrix.GetInverse()) * cy::Vec3f(0, 100, 0);
     prog["viewPos"] = viewPos;
     prog.Bind();
 
