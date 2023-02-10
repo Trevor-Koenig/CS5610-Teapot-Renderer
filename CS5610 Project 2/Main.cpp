@@ -69,7 +69,7 @@ int main(int argc, char* argv[])
     glutInitWindowSize(width, height);
     glutInitWindowPosition(100, 100);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
-    glutCreateWindow("CS 5610 Project 2 - Transformations");
+    glutCreateWindow("CS 5610 Project 3 - Shaders\tTrevor Koenig");
     glEnable(GL_DEPTH_TEST);
 
     const char* versionGL = (const char*)glGetString(GL_VERSION);
@@ -132,6 +132,7 @@ int main(int argc, char* argv[])
 
     // initalize normals
     int numNorm = numElem / 3;
+    std::cout << "numNorm: " << numNorm << "\n";
     std::vector<cy::Vec3f> normals = {};
     mesh.ComputeNormals();
     for (int i = 0; i < numNorm; i++)
@@ -185,9 +186,10 @@ int main(int argc, char* argv[])
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     prog.Bind();
     std::cout << "waiting to draw...\n";
-    glDrawElements(GL_TRIANGLE_STRIP, numElem, GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLES, numElem, GL_UNSIGNED_INT, 0);
     glutSwapBuffers();
 
+    std::cout << "finished drawing first frame. Entering main loop...\n";
     // Call main loop
     glutMainLoop();
     return 0;
