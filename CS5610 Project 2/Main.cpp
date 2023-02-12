@@ -12,6 +12,7 @@
 #include "CyCodeBase/cyTriMesh.h"
 #include "CyCodeBase/cyMatrix.h"
 #include "CyCodeBase/cyGL.h"
+#include "lodepng/lodepng.h"
 #include <numbers>
 
 
@@ -20,8 +21,6 @@ static void keyboardInterrupt(unsigned char key, int x, int y);
 static void mouseButtonTracker(int button, int state, int x, int y);
 static void mouseClickDrag(int x, int y);
 static void idleCallback();
-static void CreateVBO(UINT& buffer, const std::vector<cy::Vec3f> vertices);
-static void CreateVAO(UINT& vao, UINT& vbo, const std::vector<cy::Vec3f> vertices);
 static float DEG2RAD(float degrees);
 
 bool leftMouse, rightMouse;
@@ -48,8 +47,8 @@ int main(int argc, char* argv[])
     cy::TriMesh mesh;
     if (argc >= 2)
     {
-        std::cout << "Printing filepath: " << argv[1] << "\n";
-        mesh.LoadFromFileObj(argv[1], false);
+        std::cout << "Loading .obj file: " << argv[1] << "\n";
+        mesh.LoadFromFileObj(argv[1]);
     }
     else
     {
@@ -185,11 +184,11 @@ int main(int argc, char* argv[])
     // call draw function
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     prog.Bind();
-    std::cout << "waiting to draw...\n";
+    std::cout << "Waiting to draw...\n";
     glDrawElements(GL_TRIANGLES, numElem, GL_UNSIGNED_INT, 0);
     glutSwapBuffers();
 
-    std::cout << "finished drawing first frame. Entering main loop...\n";
+    std::cout << "Finished drawing first frame. Entering main loop\n";
     // Call main loop
     glutMainLoop();
     return 0;
