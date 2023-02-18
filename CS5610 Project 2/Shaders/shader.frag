@@ -4,15 +4,19 @@
 
 in vec3 Normal;
 in vec3 FragPos;
+in vec2 texCoord;
 out vec4 color;
 
 // uniform vec3 objColor;
 // uniform vec3 lightColor;
 uniform vec3 lightPos;
 uniform vec3 viewPos;
+uniform sampler2D tex;
 
 
-vec3 objColor = vec3(1.0f, 0.0f, 0.0f);
+vec4 texColor = texture(tex, texCoord);
+vec3 objColor = texColor.rgb;
+float alpha = texColor.a;
 vec3 specColor = vec3(1.0, 1.0, 1.0);
 vec3 lightColor = vec3(1.0, 1.0, 1.0);
 float lightPower = 5.0;
@@ -47,5 +51,5 @@ void main()
 
 
 	vec3 result = (ambient + diffuse) * objColor  + specular;
-	color = vec4(result, 1.0f);
+	color = vec4(result, alpha);
 }

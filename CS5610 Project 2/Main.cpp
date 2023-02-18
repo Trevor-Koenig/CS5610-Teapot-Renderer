@@ -5,6 +5,7 @@
 #include <math.h>
 #define M_PI 3.141592653589793238462643383279502884L /* pi */
 #include <vector>
+#include <map>
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 #include "CyCodeBase/cyCore.h"
@@ -13,6 +14,7 @@
 #include "CyCodeBase/cyMatrix.h"
 #include "CyCodeBase/cyGL.h"
 #include "lodepng/lodepng.h"
+#include "lodepng/lodepng.cpp"
 #include <numbers>
 
 
@@ -56,6 +58,7 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
+
     // Initialize FreeGLUT
     glutInit(&argc, argv);
     glutInitContextVersion(4, 5);
@@ -68,7 +71,7 @@ int main(int argc, char* argv[])
     glutInitWindowSize(width, height);
     glutInitWindowPosition(100, 100);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
-    glutCreateWindow("CS 5610 Project 3 - Shaders\tTrevor Koenig");
+    glutCreateWindow("CS 5610 Project 4 - Textures\tTrevor Koenig");
     glEnable(GL_DEPTH_TEST);
 
     const char* versionGL = (const char*)glGetString(GL_VERSION);
@@ -105,39 +108,32 @@ int main(int argc, char* argv[])
     GLuint ebuffer;
     GLuint normbuffer;
 
-    // initalize vertices
-    numVertices = mesh.NV();
-    std::cout << "numVecs: " << numVertices << "\n";
-    // A vector of vertices of the mesh
+    
     std::vector<cy::Vec3f> vertices = {};
-    for (int i = 0; i < numVertices; i++)
-    {
-        vertices.push_back(mesh.V(i));
-        // std::cout << "index: " << i << "\n";
-    }
-
-    // initalize elements
-    // A vector of triangular elements of the mesh
-    numElem = mesh.NF();
-    std::cout << "numElem: " << numElem << "\n";
-    // a vector of elements of the mesh
+    std::vector<cy::Vec3f> normals = {};
+    std::vector<cy::Vec2f> texCoords = {};
     std::vector<cy::TriMesh::TriFace> elem = {};
+    numElem = mesh.NF();
+    numVertices = mesh.NV();
     for (int i = 0; i < numElem; i++)
     {
         elem.push_back(mesh.F(i));
-    }
-    // multiply numElem to account for the mesh returning the number of faces, not values
-    numElem *= 3;
+        for (int j = 0; j < 3; j++)
+        {
+            // this is the index of the Vertex corresponding to the current vertex of the face we are on
+            int vertexIndex = mesh.F(i).v[j];
+            // this is the index of the texture index corresponding to the current vertex of the face we are on
+            int textureIndex = mesh.FT(i).v[j];
 
-    // initalize normals
-    int numNorm = numElem / 3;
-    std::cout << "numNorm: " << numNorm << "\n";
-    std::vector<cy::Vec3f> normals = {};
-    mesh.ComputeNormals();
-    for (int i = 0; i < numNorm; i++)
-    {
-        normals.push_back(mesh.VN(i));
+            // get vertex at corresponding vertex index
+            vertices.push_back(mesh.V(vertexIndex));
+            // get normal at corresponding vertex index
+            normals.push_back(mesh.VN(vertexIndex));
+            // get texture position for index at corresponding texture index
+            texCoords.push_back(cy::Vec2f(mesh.VT(textureIndex)));
+        }
     }
+    numElem *= 3;
 
     // create VAO
     glGenVertexArrays(1, &vao);
@@ -174,9 +170,52 @@ int main(int argc, char* argv[])
     glEnableVertexAttribArray(1);
     
 
-    // Create textures
+    /**
+    * Create textures
+    **/
+    //attempt to load custom textures from command line, otherwise load default texturess
+    std::vector<unsigned char> texture;
+    unsigned int width, height;
+    cyGLTexture2D tex;
+
+    if (argc > 2)
+    {
+        // load custom textures
+        unsigned int error = lodepng::decode(texture, width, height, argv[2]);
+        if (error)
+        {
+            std::cout << "Texture file not found. Were you messing with this program?\n";
+            exit(1);
+        }
+    }
+    else
+    {
+        unsigned int error = lodepng::decode(texture, width, height, "Textures\\brick\\brick.png");
+        if (error)
+        {
+            std::cout << "Default texture file not found. Were you messing with this program?\n";
+            exit(1);
+        }
+    }
+
+    // initalize VBO
+    GLuint txc;
+    glGenBuffers(1, &txc);
+    glBindBuffer(GL_ARRAY_BUFFER, txc);
+    glBufferData(GL_ARRAY_BUFFER, texCoords.size() * sizeof(cy::Vec2f), &texCoords[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
+    glEnableVertexAttribArray(2);
+    // create texture buffer now;
+    tex.Initialize();
+    tex.SetImage(&texture[0], 4, width, height);
+    tex.BuildMipmaps();
+    tex.Bind(0);
     
-    // Compile shaders
+    /**
+    * 
+    * Compile shaders
+    * 
+    **/
     // initialize CyGL
     cy::GLSLProgram prog;
     prog.BuildFiles("Shaders\\shader.vert", "Shaders\\shader.frag");
@@ -204,7 +243,7 @@ void drawNewFrame()
     // call draw function
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     // std::cout << "drawing new...\n";
-    glDrawElements(GL_TRIANGLES, numElem, GL_UNSIGNED_INT, 0);
+    glDrawArrays(GL_TRIANGLES, 0, numElem);
     glutSwapBuffers();
     return;
 }
@@ -363,6 +402,7 @@ void idleCallback()
     // why does this work? - is it because it moves the light opposite of camera?
     prog["lightPos"] = (rotMatrix.GetInverse()) * cy::Vec3f(0, 100, 0);
     prog["viewPos"] = (rotMatrix.GetInverse()) * viewPos;
+    prog["tex"] = 0;
     prog.Bind();
 
     // Tell GLUT to redraw
