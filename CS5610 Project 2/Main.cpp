@@ -3,34 +3,38 @@
 
 #include <iostream>
 #include <math.h>
-#define M_PI 3.141592653589793238462643383279502884L /* pi */
 #include <vector>
 #include <map>
 #include <GL/glew.h>
 #include <GL/freeglut.h>
+#include <numbers>
+#include "GLInitializations.h"
+#include "CyCodeBase/cyTriMesh.h"
 #include "CyCodeBase/cyCore.h"
 #include "CyCodeBase/cyVector.h"
-#include "CyCodeBase/cyTriMesh.h"
 #include "CyCodeBase/cyMatrix.h"
 #include "CyCodeBase/cyGL.h"
 #include "lodepng/lodepng.h"
 #include "lodepng/lodepng.cpp"
-#include <numbers>
 
 
-static void drawNewFrame();
-static void keyboardInterrupt(unsigned char key, int x, int y);
-static void mouseButtonTracker(int button, int state, int x, int y);
-static void mouseClickDrag(int x, int y);
-static void idleCallback();
-static float DEG2RAD(float degrees);
+void createOpenGLWindow(int width, int height);
+void initializeNewObject(cy::TriMesh* objMesh, GLuint& vao, GLuint& vbo, GLuint& ebuffer, GLuint& nbuffer, char texturePath[]);
+void drawNewFrame();
+void keyboardInterrupt(unsigned char key, int x, int y);
+void mouseButtonTracker(int button, int state, int x, int y);
+void mouseClickDrag(int x, int y);
+void idleCallback();
+float DEG2RAD(float degrees);
 
 bool leftMouse, rightMouse;
 int mouseX, mouseY;
-int width, height;
-cy::GLSLProgram prog;
-int numVertices;
+int windowWidth, windowHeight;
+GLuint teapotVao;
+GLuint planeVao;
 int numElem;
+cy::GLSLProgram teapotShaders;
+cy::GLSLProgram quadShaders;
 
 
 int main(int argc, char* argv[])
@@ -43,20 +47,11 @@ int main(int argc, char* argv[])
     **/
     leftMouse = false; rightMouse = false;
     mouseX = 0; mouseY = 0;
-    numVertices = 0, numElem = 0;
+    numElem = 0;
 
-    // check for obj  file in arguments - this is required for this program
+
     cy::TriMesh mesh;
-    if (argc >= 2)
-    {
-        std::cout << "Loading .obj file: " << argv[1] << "\n";
-        mesh.LoadFromFileObj(argv[1]);
-    }
-    else
-    {
-        std::cout << "ERROR: no .obj file given to render.\nexiting...\n";
-        exit(1);
-    }
+    loadObjFile(argv[1], &mesh);
 
 
     // Initialize FreeGLUT
@@ -64,18 +59,10 @@ int main(int argc, char* argv[])
     glutInitContextVersion(4, 5);
     glutInitContextFlags(GLUT_DEBUG);
 
-    // Create a window
-    width = 1280;
-    height = 720;
-
-    glutInitWindowSize(width, height);
-    glutInitWindowPosition(100, 100);
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
-    glutCreateWindow("CS 5610 Project 4 - Textures\tTrevor Koenig");
-    glEnable(GL_DEPTH_TEST);
-
-    const char* versionGL = (const char*)glGetString(GL_VERSION);
-    std::cout << "Current OpenGL version: " << versionGL << "\n";
+    // initalize a new window
+    windowWidth = 1280;
+    windowHeight = 720;
+    createOpenGLWindow(windowWidth, windowHeight);
 
     //initialize glew
     GLenum res = glewInit();
@@ -85,7 +72,7 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    CY_GL_REGISTER_DEBUG_CALLBACK; 
+    CY_GL_REGISTER_DEBUG_CALLBACK;
 
     /**
     *
@@ -104,17 +91,90 @@ int main(int argc, char* argv[])
 
     // Initalize buffers
     GLuint vbo;
-    GLuint vao;
+    GLuint quadVbo;
+    GLuint quadNBuffer;
+    GLuint quadEBuffer;
     GLuint ebuffer;
     GLuint normbuffer;
 
-    
+    // define plane positioning
+    float halfWidth = windowWidth / 2;
+    float halfHeight = windowHeight / 2;
+    float quadVert[] = {
+        halfWidth, -halfHeight, 0.0,
+        -halfWidth, -halfHeight, 0.0,
+        halfWidth, halfHeight, 0.0,
+        -halfWidth, -halfHeight, 0.0,
+        -halfWidth, halfHeight, 0.0,
+        halfWidth, halfHeight, 0.0
+    };
+
+    // define plane normals
+    float quadNorms[] = {
+        0.0, 0.0, 1.0,
+        0.0, 0.0, 1.0,
+        0.0, 0.0, 1.0,
+        0.0, 0.0, 1.0,
+        0.0, 0.0, 1.0,
+        0.0, 0.0, 1.0,
+        0.0, 0.0, 1.0
+    };
+
+    // define plane faces
+    int quadFaces[] = {
+        0, 1, 2,
+        3, 4, 5
+    };
+
+    // create quad plane VAO and vbo
+    glGenVertexArrays(1, &planeVao);
+    glBindVertexArray(planeVao);
+    glGenBuffers(1, &quadVbo);
+    glBindBuffer(GL_ARRAY_BUFFER, quadVbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVert), quadVert, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
+    glEnableVertexAttribArray(0);
+
+    // create quad normal buffer
+    glGenBuffers(1, &quadNBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, quadNBuffer);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadNorms), quadNorms, GL_STATIC_DRAW);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
+    glEnableVertexAttribArray(1);
+
+    // create quad element buffer
+    glGenBuffers(1, &quadEBuffer);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, quadEBuffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(quadFaces), quadFaces, GL_STATIC_DRAW);
+
+    // create texture for quad the manual way (this is empty for now and is to be rendered to)
+    // now define the texture buffer
+    //GLuint RenderTexture;
+    //glGenTextures(1, &RenderTexture);
+    //glBindTexture(GL_TEXTURE_2D, RenderTexture);
+    //// define texture as null data
+    //glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, windowWidth, windowHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    //// define depth buffer for texture
+    //GLuint depthBuffer;
+    //glGenRenderbuffers(1, &depthBuffer);
+    //glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
+    //glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, windowWidth, windowHeight);
+    //// finally configure that framebuffer we created earlier
+    //GLuint frameBuffer;
+    //glGenFramebuffers(1, &frameBuffer);
+    //glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+    //glFramebufferRenderbuffer(GL_RENDERBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
+    //
+
+
+    // now onto the teapot
     std::vector<cy::Vec3f> vertices = {};
     std::vector<cy::Vec3f> normals = {};
     std::vector<cy::Vec2f> texCoords = {};
     std::vector<cy::TriMesh::TriFace> elem = {};
     numElem = mesh.NF();
-    numVertices = mesh.NV();
     for (int i = 0; i < numElem; i++)
     {
         elem.push_back(mesh.F(i));
@@ -136,26 +196,22 @@ int main(int argc, char* argv[])
     numElem *= 3;
 
     // create VAO
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
-
-    // create normal buffer (for vertex shader)
-    glGenBuffers(1, &normbuffer);
+    glGenVertexArrays(1, &teapotVao);
+    glBindVertexArray(teapotVao);
 
     // create VBO
     glGenBuffers(1, &vbo);
-
-    // initalize VBO
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(cy::Vec3f), &vertices[0], GL_STATIC_DRAW);
-    
-    
-    // initialize normal buffer
+
+
+    // create normal buffer
+    glGenBuffers(1, &normbuffer);
     glBindBuffer(GL_ARRAY_BUFFER, normbuffer);
     glBufferData(GL_ARRAY_BUFFER, normals.size() * sizeof(cy::Vec3f), &normals[0], GL_STATIC_DRAW);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
 
-    // creat element buffer
+    // create element buffer
     glGenBuffers(1, &ebuffer);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebuffer);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, elem.size() * sizeof(cy::TriMesh::TriFace), &elem[0], GL_STATIC_DRAW);
@@ -168,11 +224,9 @@ int main(int argc, char* argv[])
 
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
-    
 
-    /**
-    * Create textures
-    **/
+
+    // create textures
     //attempt to load custom textures from command line, otherwise load default texturess
     std::vector<unsigned char> texture;
     unsigned int width, height;
@@ -217,14 +271,16 @@ int main(int argc, char* argv[])
     * 
     **/
     // initialize CyGL
-    cy::GLSLProgram prog;
-    prog.BuildFiles("Shaders\\shader.vert", "Shaders\\shader.frag");
+    teapotShaders.BuildFiles("Shaders\\shader.vert", "Shaders\\shader.frag");
+
+    quadShaders.BuildFiles("Shaders\\Passthrough.vert", "Shaders\\SimpleTexture.frag");
+    
 
     // call draw function
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    prog.Bind();
+    teapotShaders.Bind();
     std::cout << "Waiting to draw...\n";
-    glDrawElements(GL_TRIANGLES, numElem, GL_UNSIGNED_INT, 0);
+    glDrawArrays(GL_TRIANGLES, 0, numElem);
     glutSwapBuffers();
 
     std::cout << "Finished drawing first frame. Entering main loop\n";
@@ -233,25 +289,49 @@ int main(int argc, char* argv[])
     return 0;
 }
 
+
+
+
+
+/******************************************************************************
+*
+*
+*                               GL CALLBACK FUNCTIONS
+*
+*
+********************************************************************************/
+
+
 /**
-* 
+*
 * GLUT Display Callback Function - Do not directly call.
-* 
+*
 **/
 void drawNewFrame()
 {
     // call draw function
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    // std::cout << "drawing new...\n";
+
+    // draw teapot
+    glBindVertexArray(teapotVao);
+    teapotShaders.Bind();
     glDrawArrays(GL_TRIANGLES, 0, numElem);
+
+    // draw plane
+    glBindVertexArray(planeVao);
+    quadShaders.Bind();
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+
     glutSwapBuffers();
     return;
 }
 
+
 /**
 *
 * GLUT Keyboard Interrupt Callback Function - Do not directly call.
-* 
+*
 * param:
 * key - ascii value of key pressed
 * x - x coordinate of mouse pointer at time of press
@@ -268,6 +348,7 @@ void keyboardInterrupt(unsigned char key, int x, int y)
     }
     return;
 }
+
 
 /**
 *
@@ -292,6 +373,7 @@ void mouseButtonTracker(int button, int state, int x, int y)
     return;
 }
 
+
 /**
 *
 * GLUT Keyboard Interrupt Callback Function - Do not directly call.
@@ -309,6 +391,7 @@ void mouseClickDrag(int x, int y)
     // std::cout << "X: " << x << " Y: " << y << "\n";
     return;
 }
+
 
 /**
 *
@@ -338,8 +421,8 @@ void idleCallback()
     if (leftMouse)
     {
         // std::cout << "leftMouse drag.\nChange in Y: " << (prevMouseY - mouseY) << "\n";
-        float yDelt = float(mouseY - prevMouseY) / (0.2*height);
-        float xDelt = float(mouseX - prevMouseX) / (0.2*width);
+        float yDelt = float(mouseY - prevMouseY) / (0.2 * windowHeight);
+        float xDelt = float(mouseX - prevMouseX) / (0.2 * windowWidth);
         if (xRot < 180.0f)
         {
             yRot += yDelt;
@@ -391,22 +474,60 @@ void idleCallback()
     cy::Vec3f viewPos = cy::Vec3f(0, 0, 50);
     cy::Matrix4f model = scaleMatrix * rotMatrix * trans;
     cy::Matrix4f view = cy::Matrix4f::View(viewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
-    cy::Matrix4f projMatrix = cy::Matrix4f::Perspective(DEG2RAD(40), float(width) / float(height), 0.1f, 1000.0f);
+    cy::Matrix4f projMatrix = cy::Matrix4f::Perspective(DEG2RAD(40), float(windowWidth) / float(windowHeight), 0.1f, 1000.0f);
     cy::Matrix4f mvp = projMatrix * view * model;
 
     // recompile shaders, set constants, and bind them
-    prog.BuildFiles("Shaders\\shader.vert", "Shaders\\shader.frag");
-    prog["model"] = model;
-    prog["view"] = view;
-    prog["projection"] = projMatrix;
+    teapotShaders["model"] = model;
+    teapotShaders["view"] = view;
+    teapotShaders["projection"] = projMatrix;
     // why does this work? - is it because it moves the light opposite of camera?
-    prog["lightPos"] = (rotMatrix.GetInverse()) * cy::Vec3f(0, 100, 0);
-    prog["viewPos"] = (rotMatrix.GetInverse()) * viewPos;
-    prog["tex"] = 0;
-    prog.Bind();
+    teapotShaders["lightPos"] = (rotMatrix.GetInverse()) * cy::Vec3f(0, 100, 0);
+    teapotShaders["viewPos"] = (rotMatrix.GetInverse()) * viewPos;
+    teapotShaders["tex"] = 0;
+
+    cy::Vec3f quadViewPos = cy::Vec3f(0, 0, 50);
+    cy::Matrix4f quadView = cy::Matrix4f::View(quadViewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
+    quadShaders["view"] = quadView;
+    quadShaders["projection"] = projMatrix;
+    
+
 
     // Tell GLUT to redraw
     glutPostRedisplay();
+}
+
+
+
+
+
+
+/******************************************************************************
+* 
+* 
+*                               HELPER FUNCTIONS
+* 
+* 
+********************************************************************************/
+
+
+/**
+*
+* Given an integer width and height of the window this method
+* will create a new OpenGL window
+* 
+*/
+void createOpenGLWindow(int width, int height)
+{
+    // Create a window
+    glutInitWindowSize(width, height);
+    glutInitWindowPosition(100, 100);
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
+    glutCreateWindow("CS 5610 Project 4 - Textures\tTrevor Koenig");
+    glEnable(GL_DEPTH_TEST);
+
+    const char* versionGL = (const char*)glGetString(GL_VERSION);
+    std::cout << "Current OpenGL version: " << versionGL << "\n";
 }
 
 
@@ -415,7 +536,7 @@ void idleCallback()
 * Converts Degrees to Radians
 * 
 **/
-static float DEG2RAD(float degrees)
+float DEG2RAD(float degrees)
 {
     return degrees * (M_PI / 180.0f);
 }

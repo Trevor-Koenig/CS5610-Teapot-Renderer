@@ -5,7 +5,7 @@
 in vec3 Normal;
 in vec3 FragPos;
 in vec2 texCoord;
-out vec4 color;
+layout(location = 0) out vec4 color;
 
 // uniform vec3 objColor;
 // uniform vec3 lightColor;
