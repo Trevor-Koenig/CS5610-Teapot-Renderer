@@ -137,7 +137,6 @@
   <ItemGroup>
     <ClCompile Include="GLInitializations.h" />
     <ClCompile Include="Main.cpp" />
-    <ClCompile Include="Teapot.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="Objects\teapot.obj.txt" />
