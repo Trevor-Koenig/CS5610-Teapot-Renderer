@@ -19,22 +19,26 @@
 
 
 void createOpenGLWindow(int width, int height);
-void initializeNewObject(cy::TriMesh* objMesh, GLuint& vao, GLuint& vbo, GLuint& ebuffer, GLuint& nbuffer, char texturePath[]);
 void drawNewFrame();
 void keyboardInterrupt(unsigned char key, int x, int y);
 void mouseButtonTracker(int button, int state, int x, int y);
 void mouseClickDrag(int x, int y);
 void idleCallback();
+void setRotationAndDistance(float* xRot, float* yRot, float* zRot, float* distance);
 float DEG2RAD(float degrees);
 
 bool leftMouse, rightMouse;
+bool altMouseDrag;
 int mouseX, mouseY;
 int windowWidth, windowHeight;
 GLuint teapotVao;
 GLuint planeVao;
+GLuint frameBuffer;
+GLuint renderTexture;
 int numElem;
 cy::GLSLProgram teapotShaders;
-cy::GLSLProgram quadShaders;
+cy::GLSLProgram planeShaders;
+cyGLTexture2D tex;
 
 
 int main(int argc, char* argv[])
@@ -46,6 +50,7 @@ int main(int argc, char* argv[])
     *
     **/
     leftMouse = false; rightMouse = false;
+    altMouseDrag = false;
     mouseX = 0; mouseY = 0;
     numElem = 0;
 
@@ -91,26 +96,26 @@ int main(int argc, char* argv[])
 
     // Initalize buffers
     GLuint vbo;
-    GLuint quadVbo;
-    GLuint quadNBuffer;
-    GLuint quadEBuffer;
     GLuint ebuffer;
     GLuint normbuffer;
 
+    GLuint planeVbo;
+    GLuint planeNBuffer;
+    GLuint planeEBuffer;
+    GLuint planeTxc;
+
     // define plane positioning
-    float halfWidth = windowWidth / 2;
-    float halfHeight = windowHeight / 2;
-    float quadVert[] = {
-        halfWidth, -halfHeight, 0.0,
-        -halfWidth, -halfHeight, 0.0,
-        halfWidth, halfHeight, 0.0,
-        -halfWidth, -halfHeight, 0.0,
-        -halfWidth, halfHeight, 0.0,
-        halfWidth, halfHeight, 0.0
+    float planeVert[] = {
+        1.0,  1.0, 0.0,
+       -1.0,  1.0, 0.0,
+        1.0, -1.0, 0.0,
+       -1.0,  1.0, 0.0,
+       -1.0, -1.0, 0.0,
+        1.0, -1.0, 0.0
     };
 
     // define plane normals
-    float quadNorms[] = {
+    float planeNorms[] = {
         0.0, 0.0, 1.0,
         0.0, 0.0, 1.0,
         0.0, 0.0, 1.0,
@@ -121,52 +126,77 @@ int main(int argc, char* argv[])
     };
 
     // define plane faces
-    int quadFaces[] = {
+    int planeFaces[] = {
         0, 1, 2,
         3, 4, 5
     };
 
-    // create quad plane VAO and vbo
+    // define texture coordinates
+    float planeTxcArray[] = {
+        1.0, 1.0,
+        0.0, 1.0,
+        1.0, 0.0,
+        0.0, 1.0,
+        0.0, 0.0,
+        1.0, 0.0
+    };
+
+    // create plane plane VAO and vbo
     glGenVertexArrays(1, &planeVao);
     glBindVertexArray(planeVao);
-    glGenBuffers(1, &quadVbo);
-    glBindBuffer(GL_ARRAY_BUFFER, quadVbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVert), quadVert, GL_STATIC_DRAW);
+    glGenBuffers(1, &planeVbo);
+    glBindBuffer(GL_ARRAY_BUFFER, planeVbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(planeVert), planeVert, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
     glEnableVertexAttribArray(0);
 
-    // create quad normal buffer
-    glGenBuffers(1, &quadNBuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, quadNBuffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(quadNorms), quadNorms, GL_STATIC_DRAW);
+    // create plane normal buffer
+    glGenBuffers(1, &planeNBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, planeNBuffer);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(planeNorms), planeNorms, GL_STATIC_DRAW);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
     glEnableVertexAttribArray(1);
 
-    // create quad element buffer
-    glGenBuffers(1, &quadEBuffer);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, quadEBuffer);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(quadFaces), quadFaces, GL_STATIC_DRAW);
+    // create plane element buffer
+    glGenBuffers(1, &planeEBuffer);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, planeEBuffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(planeFaces), planeFaces, GL_STATIC_DRAW);
 
-    // create texture for quad the manual way (this is empty for now and is to be rendered to)
+    // create texture coordinates buffer
+    glGenBuffers(1, &planeTxc);
+    glBindBuffer(GL_ARRAY_BUFFER, planeTxc);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(planeTxcArray), planeTxcArray, GL_STATIC_DRAW);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
+    glEnableVertexAttribArray(2);
+
+    // create texture for plane the manual way (this is empty for now and is to be rendered to)
     // now define the texture buffer
-    //GLuint RenderTexture;
-    //glGenTextures(1, &RenderTexture);
-    //glBindTexture(GL_TEXTURE_2D, RenderTexture);
-    //// define texture as null data
-    //glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, windowWidth, windowHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
-    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    //// define depth buffer for texture
-    //GLuint depthBuffer;
-    //glGenRenderbuffers(1, &depthBuffer);
-    //glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
-    //glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, windowWidth, windowHeight);
-    //// finally configure that framebuffer we created earlier
-    //GLuint frameBuffer;
-    //glGenFramebuffers(1, &frameBuffer);
-    //glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
-    //glFramebufferRenderbuffer(GL_RENDERBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
-    //
+    glGenTextures(1, &renderTexture);
+    glBindTexture(GL_TEXTURE_2D, renderTexture);
+    // define texture as null data
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, windowWidth, windowHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    // define depth buffer for texture
+    GLuint depthBuffer;
+    glGenRenderbuffers(1, &depthBuffer);
+    glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, windowWidth, windowHeight);
+    // finally configure that framebuffer we created earlier
+    glGenFramebuffers(1, &frameBuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderTexture, 0);
+    GLenum drawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
+    glDrawBuffers(1, drawBuffers);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    {
+        std::cout << "Frame buffer was not initalized in time. Exiting...";
+        exit(70);
+    }
+
+    // rebind the back buffer
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 
     // now onto the teapot
@@ -230,7 +260,6 @@ int main(int argc, char* argv[])
     //attempt to load custom textures from command line, otherwise load default texturess
     std::vector<unsigned char> texture;
     unsigned int width, height;
-    cyGLTexture2D tex;
 
     if (argc > 2)
     {
@@ -271,17 +300,38 @@ int main(int argc, char* argv[])
     * 
     **/
     // initialize CyGL
+    
     teapotShaders.BuildFiles("Shaders\\shader.vert", "Shaders\\shader.frag");
 
-    quadShaders.BuildFiles("Shaders\\Passthrough.vert", "Shaders\\SimpleTexture.frag");
+    planeShaders.BuildFiles("Shaders\\Passthrough.vert", "Shaders\\SimpleTexture.frag");
     
 
     // call draw function
+    // get original frame buffer id (should be the back buffer)
+    GLint origFB;
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &origFB);
+
+    // set frame target and render
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, frameBuffer);
+    glViewport(0, 0, windowWidth, windowHeight);
+    Red = 0.5f, Green = 0.5f, Blue = 0.5f, Alpha = 0.0f; // sourced from: https://youtu.be/6dtqg0r28Yc
+    glClearColor(Red, Green, Blue, Alpha);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    // set shaders and draw teapot to texture
+    glBindVertexArray(teapotVao);
+    tex.Bind(0);
     teapotShaders.Bind();
-    std::cout << "Waiting to draw...\n";
     glDrawArrays(GL_TRIANGLES, 0, numElem);
-    glutSwapBuffers();
+
+    // draw plane with rendered texture
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, origFB);
+    glViewport(0, 0, windowWidth, windowHeight);
+    Red = 0.0f, Green = 0.0f, Blue = 0.0f, Alpha = 0.0f; // sourced from: https://youtu.be/6dtqg0r28Yc
+    glClearColor(Red, Green, Blue, Alpha);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glBindVertexArray(planeVao);
+    glBindTexture(GL_TEXTURE_2D, renderTexture);
+    planeShaders.Bind();
 
     std::cout << "Finished drawing first frame. Entering main loop\n";
     // Call main loop
@@ -309,19 +359,33 @@ int main(int argc, char* argv[])
 **/
 void drawNewFrame()
 {
-    // call draw function
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    // get original frame buffer id (should be the back buffer)
+    GLint origFB;
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &origFB);
 
-    // draw teapot
+    // set frame target and render
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, frameBuffer);
+    glViewport(0, 0, windowWidth, windowHeight);
+    GLclampf Red = 0.5f, Green = 0.5f, Blue = 0.5f, Alpha = 0.0f; // sourced from: https://youtu.be/6dtqg0r28Yc
+    glClearColor(Red, Green, Blue, Alpha);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    // set shaders and draw teapot to texture
     glBindVertexArray(teapotVao);
+    tex.Bind(0);
     teapotShaders.Bind();
     glDrawArrays(GL_TRIANGLES, 0, numElem);
 
-    // draw plane
+    // draw plane with rendered texture
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, origFB);
+    glViewport(0, 0, windowWidth, windowHeight);
+    Red = 0.0f, Green = 0.0f, Blue = 0.0f, Alpha = 0.0f; // sourced from: https://youtu.be/6dtqg0r28Yc
+    glClearColor(Red, Green, Blue, Alpha);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glBindVertexArray(planeVao);
-    quadShaders.Bind();
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindTexture(GL_TEXTURE_2D, renderTexture);
+    planeShaders.Bind();
 
+    glDrawArrays(GL_TRIANGLES, 0, 6);
 
     glutSwapBuffers();
     return;
@@ -362,12 +426,18 @@ void keyboardInterrupt(unsigned char key, int x, int y)
 **/
 void mouseButtonTracker(int button, int state, int x, int y)
 {
+    // check for alt button pressed while mouse is moving
+    if (glutGetModifiers() == GLUT_ACTIVE_ALT)
+    {
+        altMouseDrag = !state;
+    }
+
     switch (button) {
     case 0:
         leftMouse = !state;
         break;
     case 2:
-        rightMouse = !state;
+         rightMouse = !state;
         break;
     }
     return;
@@ -399,72 +469,25 @@ void mouseClickDrag(int x, int y)
 **/
 void idleCallback()
 {
-
-    static int prevMouseX = mouseX;
-    static int prevMouseY = mouseY;
-
-    // check to see if there has been a significant jump
-    if (abs(mouseX - prevMouseX) > 30 || abs(mouseY - prevMouseY) > 30)
-    {
-        prevMouseX = mouseX;
-        prevMouseY = mouseY;
-    }
-
     static float yRot = 0;
     static float xRot = 0;
     static float zRot = 0;
     static float distance = 1.0f;
+    static float altYRot = 0;
+    static float altXRot = 0;
+    static float altZRot = 0;
+    static float altDistance = 1.0f;
 
-    // true means camera is right side up
-    bool upDir = true;
-
-    if (leftMouse)
+    // check if the alt button is pressed and call functions accordingly
+    if (altMouseDrag)
     {
-        // std::cout << "leftMouse drag.\nChange in Y: " << (prevMouseY - mouseY) << "\n";
-        float yDelt = float(mouseY - prevMouseY) / (0.2 * windowHeight);
-        float xDelt = float(mouseX - prevMouseX) / (0.2 * windowWidth);
-        if (xRot < 180.0f)
-        {
-            yRot += yDelt;
-        }
-        else
-        {
-            yRot -= yDelt;
-        }
-        if (yRot < 180.0f)
-        {
-            xRot += xDelt;
-        }
-        else
-        {
-            xRot -= xDelt;
-        }
-        // zRot -= float((mouseX - prevMouseX) + (mouseY - prevMouseY)) / 4.0f;
+        setRotationAndDistance(&altXRot, &altYRot, &altZRot, &altDistance);
     }
-    else if (rightMouse)
+    else
     {
-        // calculate distance of mouse moved (scale it so that it is easy to use)
-        // clamp distance to be above zero or else it appears to start coming closer when it should be moving away
-        distance = std::max(0.0f, distance + float((mouseX - prevMouseX) + (mouseY - prevMouseY)) / 500.0f);
-        // std::cout << "rightMouse drag.\nChange in distance: " << distance << "\n";
+        setRotationAndDistance(&xRot, &yRot, &zRot, &distance);
     }
 
-    prevMouseY = mouseY;
-    prevMouseX = mouseX;
-
-    // clean up rotation values
-    if (xRot >= 360.0f)
-    {
-        xRot = xRot - 360.0f;
-    }
-    if (yRot >= 360.0f)
-    {
-        yRot = yRot - 360.0f;
-    }
-    if (zRot >= 360.0f)
-    {
-        zRot = zRot - 360.0f;
-    }
 
 
     // std::cout << "yRot: " << yRot << "\n";
@@ -484,12 +507,18 @@ void idleCallback()
     // why does this work? - is it because it moves the light opposite of camera?
     teapotShaders["lightPos"] = (rotMatrix.GetInverse()) * cy::Vec3f(0, 100, 0);
     teapotShaders["viewPos"] = (rotMatrix.GetInverse()) * viewPos;
-    teapotShaders["tex"] = 0;
+    // teapotShaders["tex"] = 0;
 
-    cy::Vec3f quadViewPos = cy::Vec3f(0, 0, 50);
-    cy::Matrix4f quadView = cy::Matrix4f::View(quadViewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
-    quadShaders["view"] = quadView;
-    quadShaders["projection"] = projMatrix;
+
+    cy::Matrix3f planeRotMatrix = cy::Matrix3f::RotationXYZ(altYRot, altXRot, altZRot);
+    cy::Matrix4f planeScaleMatrix = cy::Matrix4f::Scale(cy::Vec3f(altDistance, altDistance, altDistance));
+    //cy::Matrix4f planeTrans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, -5.5f));
+    cy::Matrix4f planeModel = planeScaleMatrix * planeRotMatrix;
+    cy::Vec3f planeViewPos = cy::Vec3f(0, 0, 0.01);
+    cy::Matrix4f planeView = cy::Matrix4f::View(planeViewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f)) * planeScaleMatrix * planeRotMatrix;
+    planeShaders["model"] = planeModel;
+    planeShaders["view"] = planeView;
+    planeShaders["projection"] = projMatrix;
     
 
 
@@ -528,6 +557,76 @@ void createOpenGLWindow(int width, int height)
 
     const char* versionGL = (const char*)glGetString(GL_VERSION);
     std::cout << "Current OpenGL version: " << versionGL << "\n";
+}
+
+
+/**
+* 
+* Set the x, y, and z rotation values given based on mouse location.
+* 
+**/
+void setRotationAndDistance(float* xRot, float* yRot, float* zRot, float* distance)
+{
+    static int prevMouseX = mouseX;
+    static int prevMouseY = mouseY;
+
+    // check to see if there has been a significant jump
+    if (abs(mouseX - prevMouseX) > 30 || abs(mouseY - prevMouseY) > 30)
+    {
+        prevMouseX = mouseX;
+        prevMouseY = mouseY;
+    }
+
+    // true means camera is right side up
+    bool upDir = true;
+
+    if (leftMouse)
+    {
+        // std::cout << "leftMouse drag.\nChange in Y: " << (prevMouseY - mouseY) << "\n";
+        float yDelt = float(mouseY - prevMouseY) / (0.2 * windowHeight);
+        float xDelt = float(mouseX - prevMouseX) / (0.2 * windowWidth);
+        if (*xRot < 180.0f)
+        {
+            *yRot += yDelt;
+        }
+        else
+        {
+            *yRot -= yDelt;
+        }
+        if (*yRot < 180.0f)
+        {
+            *xRot += xDelt;
+        }
+        else
+        {
+            *xRot -= xDelt;
+        }
+        // zRot -= float((mouseX - prevMouseX) + (mouseY - prevMouseY)) / 4.0f;
+    }
+    else if (rightMouse)
+    {
+        // calculate distance of mouse moved (scale it so that it is easy to use)
+        // clamp distance to be above zero or else it appears to start coming closer when it should be moving away
+        *distance = std::max(0.0f, *distance + float((mouseX - prevMouseX) + (mouseY - prevMouseY)) / 500.0f);
+        // std::cout << "rightMouse drag.\nChange in distance: " << distance << "\n";
+    }
+
+    prevMouseY = mouseY;
+    prevMouseX = mouseX;
+
+    // clean up rotation values
+    if (*xRot >= 360.0f)
+    {
+        *xRot = *xRot - 360.0f;
+    }
+    if (*yRot >= 360.0f)
+    {
+        *yRot = *yRot - 360.0f;
+    }
+    if (*zRot >= 360.0f)
+    {
+        *zRot = *zRot - 360.0f;
+    }
 }
 
 

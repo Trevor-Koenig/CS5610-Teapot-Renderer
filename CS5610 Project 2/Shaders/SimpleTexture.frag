@@ -1,9 +1,14 @@
 #version 330 core
 
-in vec3 clr;
+in vec2 texCoord;
 
-out vec3 color;
+out vec4 color;
 
-void main(){
-    color = clr;
+uniform sampler2D tex;
+
+vec4 texColor = texture(tex, texCoord);
+
+void main()
+{
+    color = texColor;
 }
