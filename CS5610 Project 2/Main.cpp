@@ -171,34 +171,6 @@ int main(int argc, char* argv[])
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
     glEnableVertexAttribArray(2);
 
-    // create texture for plane the manual way (this is empty for now and is to be rendered to)
-    // now define the texture buffer
-    glGenTextures(1, &renderTexture);
-    glBindTexture(GL_TEXTURE_2D, renderTexture);
-    // define texture as null data
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, windowWidth, windowHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    // define depth buffer for texture
-    GLuint depthBuffer;
-    glGenRenderbuffers(1, &depthBuffer);
-    glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, windowWidth, windowHeight);
-    // finally configure that framebuffer we created earlier
-    glGenFramebuffers(1, &frameBuffer);
-    glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
-    glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderTexture, 0);
-    GLenum drawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
-    glDrawBuffers(1, drawBuffers);
-    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-    {
-        std::cout << "Frame buffer was not initalized in time. Exiting...";
-        exit(70);
-    }
-
-    // rebind the back buffer
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 
     // now onto the teapot
@@ -258,8 +230,8 @@ int main(int argc, char* argv[])
     glEnableVertexAttribArray(1);
 
 
-    // create textures
-    //attempt to load custom textures from command line, otherwise load default texturess
+    // create textures for teapot
+    // attempt to load custom textures from command line, otherwise load default texturess
     std::vector<unsigned char> texture;
     unsigned int width, height;
 
@@ -295,6 +267,7 @@ int main(int argc, char* argv[])
     tex.SetImage(&texture[0], 4, width, height);
     tex.BuildMipmaps();
     tex.Bind(0);
+
 
     // create city environment cubemap
     glGenTextures(1, &cityEnv);
