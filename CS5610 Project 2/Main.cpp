@@ -5,7 +5,7 @@
 #include <math.h>
 #include <vector>
 #include <map>
-#include <algorithm>
+#include <string>
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 #include <numbers>
@@ -36,6 +36,7 @@ GLuint teapotVao;
 GLuint planeVao;
 GLuint frameBuffer;
 GLuint renderTexture;
+GLuint cityEnv;
 int numElem;
 cy::GLSLProgram teapotShaders;
 cy::GLSLProgram planeShaders;
@@ -294,6 +295,44 @@ int main(int argc, char* argv[])
     tex.SetImage(&texture[0], 4, width, height);
     tex.BuildMipmaps();
     tex.Bind(0);
+
+    // create city environment cubemap
+    glGenTextures(1, &cityEnv);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cityEnv);
+    // define side order
+    std::string sides[] = {"posx.png", "negx.png", "posy.png", "negy.png", "posz.png", "negz.png"};
+    std::vector<unsigned char> envTexture;
+    unsigned int envWidth = 0;
+    unsigned int envHeight = 0;
+    // add every side
+    for (int i = 0; i < 6; i++)
+    {
+        // load environment textures
+        std::string filepath = "Environments\\city_cubemap\\cubemap_" + sides[i];
+        unsigned int error = lodepng::decode(envTexture, envWidth, envHeight, filepath);
+        if (error)
+        {
+            std::cout << "Environment texture" + sides[i] + " file not found. Please check file structure \n";
+            exit(1);
+        }
+
+        glTexImage2D(
+            GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,     // face, adding one specifies new face
+            0,                                      // mipmap level
+            GL_RGBA,                                // internal formatting
+            envWidth,                               // image width
+            envHeight,                              // image height
+            0,                                      // border (must be 0 I guess)
+            GL_RGBA,                                // image format
+            GL_UNSIGNED_BYTE,                       // data type
+            &envTexture[0]                          // image data
+        );
+    }
+    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
     
     /**
     * 
