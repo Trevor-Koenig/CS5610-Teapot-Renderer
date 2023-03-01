@@ -360,33 +360,27 @@ int main(int argc, char* argv[])
 **/
 void drawNewFrame()
 {
+    // clear scene
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
     // get original frame buffer id (should be the back buffer)
     GLint origFB;
     glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &origFB);
 
-    // set frame target and render
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, frameBuffer);
-    glViewport(0, 0, windowWidth, windowHeight);
-    GLclampf Red = 0.5f, Green = 0.5f, Blue = 0.5f, Alpha = 0.0f; // sourced from: https://youtu.be/6dtqg0r28Yc
-    glClearColor(Red, Green, Blue, Alpha);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    // draw plane with texture
+    glBindVertexArray(planeVao);
+    //glBindTexture(GL_TEXTURE_2D, renderTexture);
+    planeShaders.Bind();
+    glDepthMask(GL_FALSE);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glDepthMask(GL_TRUE);
+
+    // render teapot
     // set shaders and draw teapot to texture
     glBindVertexArray(teapotVao);
     tex.Bind(0);
     teapotShaders.Bind();
     glDrawArrays(GL_TRIANGLES, 0, numElem);
-
-    // draw plane with rendered texture
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, origFB);
-    glViewport(0, 0, windowWidth, windowHeight);
-    Red = 0.0f, Green = 0.0f, Blue = 0.0f, Alpha = 0.0f; // sourced from: https://youtu.be/6dtqg0r28Yc
-    glClearColor(Red, Green, Blue, Alpha);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glBindVertexArray(planeVao);
-    glBindTexture(GL_TEXTURE_2D, renderTexture);
-    planeShaders.Bind();
-
-    glDrawArrays(GL_TRIANGLES, 0, 6);
 
     glutSwapBuffers();
     return;
@@ -495,7 +489,7 @@ void idleCallback()
     cy::Matrix3f rotMatrix = cy::Matrix3f::RotationXYZ(xRot, yRot, zRot);
     cy::Matrix4f scaleMatrix = cy::Matrix4f::Scale(cy::Vec3f(distance, distance, distance));
     cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, -5.5f));
-    cy::Vec3f viewPos = rotMatrix * cy::Vec3f(0, 50, 0);
+    cy::Vec3f viewPos = rotMatrix * cy::Vec3f(0, -50, 0);
     cy::Matrix4f model = scaleMatrix * trans;
     cy::Matrix4f view = cy::Matrix4f::View(viewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 0.0f, 1.0f));
     cy::Matrix4f projMatrix = cy::Matrix4f::Perspective(DEG2RAD(40), float(windowWidth) / float(windowHeight), 0.1f, 1000.0f);
@@ -588,11 +582,11 @@ void setRotationAndDistance(float& xRot, float& yRot, float& zRot, float& distan
         float xDelt = float(mouseX - prevMouseX) / (0.2 * windowWidth);
         if (zRot < DEG2RAD(180.0f))
         {
-            xRot += yDelt;
+            xRot -= yDelt;
         }
         else
         {
-            xRot -= yDelt;
+            xRot += yDelt;
         }
         if (xRot < DEG2RAD(180.0f))
         {
