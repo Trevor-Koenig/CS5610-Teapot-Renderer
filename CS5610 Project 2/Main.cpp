@@ -5,6 +5,7 @@
 #include <math.h>
 #include <vector>
 #include <map>
+#include <algorithm>
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 #include <numbers>
@@ -24,7 +25,7 @@ void keyboardInterrupt(unsigned char key, int x, int y);
 void mouseButtonTracker(int button, int state, int x, int y);
 void mouseClickDrag(int x, int y);
 void idleCallback();
-void setRotationAndDistance(float* xRot, float* yRot, float* zRot, float* distance);
+void setRotationAndDistance(float& xRot, float& yRot, float& zRot, float& distance);
 float DEG2RAD(float degrees);
 
 bool leftMouse, rightMouse;
@@ -481,22 +482,22 @@ void idleCallback()
     // check if the alt button is pressed and call functions accordingly
     if (altMouseDrag)
     {
-        setRotationAndDistance(&altXRot, &altYRot, &altZRot, &altDistance);
+        setRotationAndDistance(altXRot, altYRot, altZRot, altDistance);
     }
     else
     {
-        setRotationAndDistance(&xRot, &yRot, &zRot, &distance);
+        setRotationAndDistance(xRot, yRot, zRot, distance);
     }
 
 
 
     // std::cout << "yRot: " << yRot << "\n";
-    cy::Matrix3f rotMatrix = cy::Matrix3f::RotationXYZ(yRot, xRot, zRot);
+    cy::Matrix3f rotMatrix = cy::Matrix3f::RotationXYZ(xRot, yRot, zRot);
     cy::Matrix4f scaleMatrix = cy::Matrix4f::Scale(cy::Vec3f(distance, distance, distance));
     cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, -5.5f));
-    cy::Vec3f viewPos = cy::Vec3f(0, 0, 50);
-    cy::Matrix4f model = scaleMatrix * rotMatrix * trans;
-    cy::Matrix4f view = cy::Matrix4f::View(viewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
+    cy::Vec3f viewPos = rotMatrix * cy::Vec3f(0, 50, 0);
+    cy::Matrix4f model = scaleMatrix * trans;
+    cy::Matrix4f view = cy::Matrix4f::View(viewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 0.0f, 1.0f));
     cy::Matrix4f projMatrix = cy::Matrix4f::Perspective(DEG2RAD(40), float(windowWidth) / float(windowHeight), 0.1f, 1000.0f);
     cy::Matrix4f mvp = projMatrix * view * model;
 
@@ -505,12 +506,12 @@ void idleCallback()
     teapotShaders["view"] = view;
     teapotShaders["projection"] = projMatrix;
     // why does this work? - is it because it moves the light opposite of camera?
-    teapotShaders["lightPos"] = (rotMatrix.GetInverse()) * cy::Vec3f(0, 100, 0);
-    teapotShaders["viewPos"] = (rotMatrix.GetInverse()) * viewPos;
+    teapotShaders["lightPos"] =  cy::Vec3f(20.0f, 0.0f, 100.0f);
+    teapotShaders["viewPos"] = viewPos;
     // teapotShaders["tex"] = 0;
 
 
-    cy::Matrix3f planeRotMatrix = cy::Matrix3f::RotationXYZ(altYRot, altXRot, altZRot);
+    cy::Matrix3f planeRotMatrix = cy::Matrix3f::RotationXYZ(altXRot, altYRot, altZRot);
     cy::Matrix4f planeScaleMatrix = cy::Matrix4f::Scale(cy::Vec3f(altDistance, altDistance, altDistance));
     //cy::Matrix4f planeTrans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, -5.5f));
     cy::Matrix4f planeModel = planeScaleMatrix * planeRotMatrix;
@@ -565,7 +566,7 @@ void createOpenGLWindow(int width, int height)
 * Set the x, y, and z rotation values given based on mouse location.
 * 
 **/
-void setRotationAndDistance(float* xRot, float* yRot, float* zRot, float* distance)
+void setRotationAndDistance(float& xRot, float& yRot, float& zRot, float& distance)
 {
     static int prevMouseX = mouseX;
     static int prevMouseY = mouseY;
@@ -585,21 +586,21 @@ void setRotationAndDistance(float* xRot, float* yRot, float* zRot, float* distan
         // std::cout << "leftMouse drag.\nChange in Y: " << (prevMouseY - mouseY) << "\n";
         float yDelt = float(mouseY - prevMouseY) / (0.2 * windowHeight);
         float xDelt = float(mouseX - prevMouseX) / (0.2 * windowWidth);
-        if (*xRot < 180.0f)
+        if (zRot < DEG2RAD(180.0f))
         {
-            *yRot += yDelt;
+            xRot += yDelt;
         }
         else
         {
-            *yRot -= yDelt;
+            xRot -= yDelt;
         }
-        if (*yRot < 180.0f)
+        if (xRot < DEG2RAD(180.0f))
         {
-            *xRot += xDelt;
+            zRot -= xDelt;
         }
         else
         {
-            *xRot -= xDelt;
+            zRot += xDelt;
         }
         // zRot -= float((mouseX - prevMouseX) + (mouseY - prevMouseY)) / 4.0f;
     }
@@ -607,7 +608,7 @@ void setRotationAndDistance(float* xRot, float* yRot, float* zRot, float* distan
     {
         // calculate distance of mouse moved (scale it so that it is easy to use)
         // clamp distance to be above zero or else it appears to start coming closer when it should be moving away
-        *distance = std::max(0.0f, *distance + float((mouseX - prevMouseX) + (mouseY - prevMouseY)) / 500.0f);
+        distance = std::max(0.0f, distance + float((mouseX - prevMouseX) + (mouseY - prevMouseY)) / 500.0f);
         // std::cout << "rightMouse drag.\nChange in distance: " << distance << "\n";
     }
 
@@ -615,18 +616,9 @@ void setRotationAndDistance(float* xRot, float* yRot, float* zRot, float* distan
     prevMouseX = mouseX;
 
     // clean up rotation values
-    if (*xRot >= 360.0f)
-    {
-        *xRot = *xRot - 360.0f;
-    }
-    if (*yRot >= 360.0f)
-    {
-        *yRot = *yRot - 360.0f;
-    }
-    if (*zRot >= 360.0f)
-    {
-        *zRot = *zRot - 360.0f;
-    }
+    xRot = cy::Clamp(xRot, DEG2RAD(-89.9f), DEG2RAD(89.9f));
+    yRot = fmod(yRot, DEG2RAD(360.0f));
+    zRot = fmod(zRot, DEG2RAD(360.0f));
 }
 
 
