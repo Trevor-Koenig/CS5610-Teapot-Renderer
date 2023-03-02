@@ -515,7 +515,8 @@ void idleCallback()
     cy::Vec3f planeViewPos = planeRotMatrix * cy::Vec3f(0.0f, 0.0f, 1.0f);
     cy::Matrix4f planeView = cy::Matrix4f::View(planeViewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f)) * planeScaleMatrix;
     // define how the camera moves relative to the environment
-    cy::Matrix3f camRotMatrix = cy::Matrix3f::RotationXYZ(xRot, yRot, zRot);
+    // camera should rotate faster than the object due to parallax
+    cy::Matrix3f camRotMatrix = cy::Matrix3f::RotationXYZ(xRot, yRot, -zRot);
     cy::Vec3f camViewPos = camRotMatrix * cy::Vec3f(0.0f, 0.0f, -100.0f);
     cy::Matrix4f camView = cy::Matrix4f::View(camViewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
     planeShaders["view"] = planeView;
@@ -591,11 +592,11 @@ void setRotationAndDistance(float& xRot, float& yRot, float& zRot, float& distan
         // dont ask me why these have to be flipped, but if you know let me know
         if (yRot < DEG2RAD(180.0f))
         {
-            xRot -= yDelt;
+            xRot += yDelt;
         }
         else
         {
-            xRot += yDelt;
+            xRot -= yDelt;
         }
         if (xRot < DEG2RAD(180.0f))
         {
