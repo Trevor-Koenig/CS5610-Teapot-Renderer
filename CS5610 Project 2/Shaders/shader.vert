@@ -23,8 +23,8 @@ void main()
 	vec4 pos = projection * view * model * vec4(position, 1.0f);
 	gl_Position = pos;
 	FragPos = vec3(view * model * vec4(position, 1.0f));
-	vec3 viewDir = vec3(viewPos.z, viewPos.y, viewPos.x);
-	vec3 reflection = reflect((position - viewDir), normalize(normal));
+	vec3 viewDir = viewPos;
+	reflection = reflect(position - viewDir, -normal);
 	Normal = normal;
 	texCoord = txc;
 	camPos = viewPos;

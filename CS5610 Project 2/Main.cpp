@@ -494,9 +494,9 @@ void idleCallback()
     //cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, -5.5f));
     // for sphere
     cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, 0.0f));
-    cy::Vec3f viewPos = rotMatrix * cy::Vec3f(0, -100, 0);
+    cy::Vec3f viewPos = rotMatrix * cy::Vec3f(0, 0, 100);
     cy::Matrix4f model = scaleMatrix * trans;
-    cy::Matrix4f view = cy::Matrix4f::View(viewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 0.0f, 1.0f));
+    cy::Matrix4f view = cy::Matrix4f::View(viewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
     cy::Matrix4f projMatrix = cy::Matrix4f::Perspective(DEG2RAD(40), float(windowWidth) / float(windowHeight), 0.1f, 1000.0f);
     cy::Matrix4f mvp = projMatrix * view * model;
 
@@ -504,7 +504,7 @@ void idleCallback()
     SphereShaders["model"] = model;
     SphereShaders["view"] = view;
     SphereShaders["projection"] = projMatrix;
-    SphereShaders["lightPos"] =  cy::Vec3f(20.0f, 0.0f, 100.0f);
+    SphereShaders["lightPos"] =  cy::Vec3f(0.0f, 1000.0f, 0.0f);
     SphereShaders["viewPos"] = viewPos;
     // why don't I need this?
     // SphereShaders["tex"] = 0;
@@ -515,11 +515,11 @@ void idleCallback()
     cy::Vec3f planeViewPos = planeRotMatrix * cy::Vec3f(0.0f, 0.0f, 1.0f);
     cy::Matrix4f planeView = cy::Matrix4f::View(planeViewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f)) * planeScaleMatrix;
     // define how the camera moves relative to the environment
-    cy::Matrix3f camRotMatrix = cy::Matrix3f::RotationXYZ(-xRot, -zRot, yRot);
+    cy::Matrix3f camRotMatrix = cy::Matrix3f::RotationXYZ(xRot, yRot, zRot);
     cy::Vec3f camViewPos = camRotMatrix * cy::Vec3f(0, 0, 100);
     cy::Matrix4f camView = cy::Matrix4f::View(camViewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
     planeShaders["view"] = planeView;
-    planeShaders["camView"] = camView;
+    planeShaders["camView"] = view;
     planeShaders["projection"] = projMatrix;
     planeShaders["viewPos"] = viewPos;
     
@@ -588,7 +588,8 @@ void setRotationAndDistance(float& xRot, float& yRot, float& zRot, float& distan
         // std::cout << "leftMouse drag.\nChange in Y: " << (prevMouseY - mouseY) << "\n";
         float yDelt = float(mouseY - prevMouseY) / (0.2 * windowHeight);
         float xDelt = float(mouseX - prevMouseX) / (0.2 * windowWidth);
-        if (zRot < DEG2RAD(180.0f))
+        // dont ask me why these have to be flipped, but if you know let me know
+        if (yRot < DEG2RAD(180.0f))
         {
             xRot -= yDelt;
         }
@@ -598,11 +599,11 @@ void setRotationAndDistance(float& xRot, float& yRot, float& zRot, float& distan
         }
         if (xRot < DEG2RAD(180.0f))
         {
-            zRot -= xDelt;
+            yRot += xDelt;
         }
         else
         {
-            zRot += xDelt;
+            yRot -= xDelt;
         }
         // zRot -= float((mouseX - prevMouseX) + (mouseY - prevMouseY)) / 4.0f;
     }
