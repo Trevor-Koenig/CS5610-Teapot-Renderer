@@ -5,16 +5,18 @@
 in vec3 Normal;
 in vec3 FragPos;
 in vec2 texCoord;
+in vec3 camPos;
+in vec3 reflection;
+
 layout(location = 0) out vec4 color;
 
 // uniform vec3 objColor;
 // uniform vec3 lightColor;
 uniform vec3 lightPos;
-uniform vec3 viewPos;
-uniform sampler2D tex;
+uniform samplerCube env;
 
 
-vec4 texColor = texture(tex, texCoord);
+vec4 texColor = texture(env, reflection);
 vec3 objColor = texColor.rgb;
 float alpha = texColor.a;
 vec3 specColor = vec3(1.0, 1.0, 1.0);
@@ -42,7 +44,7 @@ void main()
 	// Specular (blinn phong shading)
 	float cosAngIncidence = dot(norm, lightDir);
 	cosAngIncidence = clamp(cosAngIncidence, 0, 1);
-	vec3 viewDir = normalize(viewPos);
+	vec3 viewDir = normalize(camPos);
 	vec3 halfDir = normalize(lightDir + viewDir);
 	float specAngle = max(dot(norm, halfDir), 0.0);
 	specAngle = clamp(specAngle, 0, 1);

@@ -32,13 +32,13 @@ bool leftMouse, rightMouse;
 bool altMouseDrag;
 int mouseX, mouseY;
 int windowWidth, windowHeight;
-GLuint teapotVao;
+GLuint SphereVao;
 GLuint planeVao;
 GLuint frameBuffer;
 GLuint renderTexture;
 GLuint cityEnv;
 int numElem;
-cy::GLSLProgram teapotShaders;
+cy::GLSLProgram SphereShaders;
 cy::GLSLProgram planeShaders;
 cyGLTexture2D tex;
 
@@ -200,8 +200,8 @@ int main(int argc, char* argv[])
     numElem *= 3;
 
     // create VAO
-    glGenVertexArrays(1, &teapotVao);
-    glBindVertexArray(teapotVao);
+    glGenVertexArrays(1, &SphereVao);
+    glBindVertexArray(SphereVao);
 
     // create VBO
     glGenBuffers(1, &vbo);
@@ -230,7 +230,7 @@ int main(int argc, char* argv[])
     glEnableVertexAttribArray(1);
 
 
-    // create textures for teapot
+    // create textures for Sphere
     // attempt to load custom textures from command line, otherwise load default texturess
     std::vector<unsigned char> texture;
     unsigned int width, height;
@@ -274,12 +274,12 @@ int main(int argc, char* argv[])
     glBindTexture(GL_TEXTURE_CUBE_MAP, cityEnv);
     // define side order
     std::string sides[] = {"posx.png", "negx.png", "posy.png", "negy.png", "posz.png", "negz.png"};
-    std::vector<unsigned char> envTexture;
     unsigned int envWidth = 0;
     unsigned int envHeight = 0;
     // add every side
     for (int i = 0; i < 6; i++)
     {
+        std::vector<unsigned char> envTexture;
         // load environment textures
         std::string filepath = "Environments\\city_cubemap\\cubemap_" + sides[i];
         unsigned int error = lodepng::decode(envTexture, envWidth, envHeight, filepath);
@@ -314,9 +314,9 @@ int main(int argc, char* argv[])
     **/
     // initialize CyGL
     
-    teapotShaders.BuildFiles("Shaders\\shader.vert", "Shaders\\shader.frag");
+    SphereShaders.BuildFiles("Shaders\\shader.vert", "Shaders\\shader.frag");
 
-    planeShaders.BuildFiles("Shaders\\Passthrough.vert", "Shaders\\SimpleTexture.frag");
+    planeShaders.BuildFiles("Shaders\\envShader.vert", "Shaders\\envShader.frag");
     
 
     // call draw function
@@ -324,23 +324,15 @@ int main(int argc, char* argv[])
     GLint origFB;
     glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &origFB);
 
-    // set frame target and render
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, frameBuffer);
-    glViewport(0, 0, windowWidth, windowHeight);
-    Red = 0.5f, Green = 0.5f, Blue = 0.5f, Alpha = 0.0f; // sourced from: https://youtu.be/6dtqg0r28Yc
-    glClearColor(Red, Green, Blue, Alpha);
+    // clear scene
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    // set shaders and draw teapot to texture
-    glBindVertexArray(teapotVao);
-    tex.Bind(0);
-    teapotShaders.Bind();
+
+    // set shaders and draw Sphere to scene
+    glBindVertexArray(SphereVao);
+    SphereShaders.Bind();
     glDrawArrays(GL_TRIANGLES, 0, numElem);
 
     // draw plane with rendered texture
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, origFB);
-    glViewport(0, 0, windowWidth, windowHeight);
-    Red = 0.0f, Green = 0.0f, Blue = 0.0f, Alpha = 0.0f; // sourced from: https://youtu.be/6dtqg0r28Yc
-    glClearColor(Red, Green, Blue, Alpha);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glBindVertexArray(planeVao);
     glBindTexture(GL_TEXTURE_2D, renderTexture);
@@ -381,17 +373,15 @@ void drawNewFrame()
 
     // draw plane with texture
     glBindVertexArray(planeVao);
-    //glBindTexture(GL_TEXTURE_2D, renderTexture);
     planeShaders.Bind();
     glDepthMask(GL_FALSE);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glDepthMask(GL_TRUE);
 
-    // render teapot
-    // set shaders and draw teapot to texture
-    glBindVertexArray(teapotVao);
-    tex.Bind(0);
-    teapotShaders.Bind();
+    // render Sphere
+    // set shaders and draw Sphere to texture
+    glBindVertexArray(SphereVao);
+    SphereShaders.Bind();
     glDrawArrays(GL_TRIANGLES, 0, numElem);
 
     glutSwapBuffers();
@@ -500,32 +490,38 @@ void idleCallback()
     // std::cout << "yRot: " << yRot << "\n";
     cy::Matrix3f rotMatrix = cy::Matrix3f::RotationXYZ(xRot, yRot, zRot);
     cy::Matrix4f scaleMatrix = cy::Matrix4f::Scale(cy::Vec3f(distance, distance, distance));
-    cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, -5.5f));
-    cy::Vec3f viewPos = rotMatrix * cy::Vec3f(0, -50, 0);
+    // for teapot
+    //cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, -5.5f));
+    // for sphere
+    cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, 0.0f));
+    cy::Vec3f viewPos = rotMatrix * cy::Vec3f(0, -100, 0);
     cy::Matrix4f model = scaleMatrix * trans;
     cy::Matrix4f view = cy::Matrix4f::View(viewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 0.0f, 1.0f));
     cy::Matrix4f projMatrix = cy::Matrix4f::Perspective(DEG2RAD(40), float(windowWidth) / float(windowHeight), 0.1f, 1000.0f);
     cy::Matrix4f mvp = projMatrix * view * model;
 
     // recompile shaders, set constants, and bind them
-    teapotShaders["model"] = model;
-    teapotShaders["view"] = view;
-    teapotShaders["projection"] = projMatrix;
-    // why does this work? - is it because it moves the light opposite of camera?
-    teapotShaders["lightPos"] =  cy::Vec3f(20.0f, 0.0f, 100.0f);
-    teapotShaders["viewPos"] = viewPos;
-    // teapotShaders["tex"] = 0;
+    SphereShaders["model"] = model;
+    SphereShaders["view"] = view;
+    SphereShaders["projection"] = projMatrix;
+    SphereShaders["lightPos"] =  cy::Vec3f(20.0f, 0.0f, 100.0f);
+    SphereShaders["viewPos"] = viewPos;
+    // why don't I need this?
+    // SphereShaders["tex"] = 0;
 
-
+    
     cy::Matrix3f planeRotMatrix = cy::Matrix3f::RotationXYZ(altXRot, altYRot, altZRot);
     cy::Matrix4f planeScaleMatrix = cy::Matrix4f::Scale(cy::Vec3f(altDistance, altDistance, altDistance));
-    //cy::Matrix4f planeTrans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, -5.5f));
-    cy::Matrix4f planeModel = planeScaleMatrix * planeRotMatrix;
-    cy::Vec3f planeViewPos = cy::Vec3f(0, 0, 0.01);
-    cy::Matrix4f planeView = cy::Matrix4f::View(planeViewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f)) * planeScaleMatrix * planeRotMatrix;
-    planeShaders["model"] = planeModel;
+    cy::Vec3f planeViewPos = planeRotMatrix * cy::Vec3f(0.0f, 0.0f, 1.0f);
+    cy::Matrix4f planeView = cy::Matrix4f::View(planeViewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f)) * planeScaleMatrix;
+    // define how the camera moves relative to the environment
+    cy::Matrix3f camRotMatrix = cy::Matrix3f::RotationXYZ(-xRot, -zRot, yRot);
+    cy::Vec3f camViewPos = camRotMatrix * cy::Vec3f(0, 0, 100);
+    cy::Matrix4f camView = cy::Matrix4f::View(camViewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
     planeShaders["view"] = planeView;
+    planeShaders["camView"] = camView;
     planeShaders["projection"] = projMatrix;
+    planeShaders["viewPos"] = viewPos;
     
 
 
