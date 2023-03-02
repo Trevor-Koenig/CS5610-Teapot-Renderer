@@ -22,7 +22,7 @@ float alpha = texColor.a;
 vec3 specColor = vec3(1.0, 1.0, 1.0);
 vec3 lightColor = vec3(1.0, 1.0, 1.0);
 float lightPower = 5.0;
-float shininess = 256.0;
+float shininess = 2048.0;
 
 void main()
 {
@@ -33,7 +33,7 @@ void main()
 	lightDir = normalize(lightDir);
 
 	// ambient
-	float ambientStrength = 0.3f;
+	float ambientStrength = 0.5f;
 	vec3 ambient = ambientStrength * lightColor;
 
 	// Diffuse 

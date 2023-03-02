@@ -494,7 +494,7 @@ void idleCallback()
     //cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, -5.5f));
     // for sphere
     cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, 0.0f));
-    cy::Vec3f viewPos = rotMatrix * cy::Vec3f(0, 0, 100);
+    cy::Vec3f viewPos = rotMatrix * cy::Vec3f(0.0f, 0.0f, 100.0f);
     cy::Matrix4f model = scaleMatrix * trans;
     cy::Matrix4f view = cy::Matrix4f::View(viewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
     cy::Matrix4f projMatrix = cy::Matrix4f::Perspective(DEG2RAD(40), float(windowWidth) / float(windowHeight), 0.1f, 1000.0f);
@@ -516,10 +516,10 @@ void idleCallback()
     cy::Matrix4f planeView = cy::Matrix4f::View(planeViewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f)) * planeScaleMatrix;
     // define how the camera moves relative to the environment
     cy::Matrix3f camRotMatrix = cy::Matrix3f::RotationXYZ(xRot, yRot, zRot);
-    cy::Vec3f camViewPos = camRotMatrix * cy::Vec3f(0, 0, 100);
+    cy::Vec3f camViewPos = camRotMatrix * cy::Vec3f(0.0f, 0.0f, -100.0f);
     cy::Matrix4f camView = cy::Matrix4f::View(camViewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
     planeShaders["view"] = planeView;
-    planeShaders["camView"] = view;
+    planeShaders["camView"] = camView;
     planeShaders["projection"] = projMatrix;
     planeShaders["viewPos"] = viewPos;
     
