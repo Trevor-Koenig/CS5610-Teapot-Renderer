@@ -22,7 +22,7 @@ float alpha = texColor.a;
 vec3 specColor = vec3(1.0, 1.0, 1.0);
 vec3 lightColor = vec3(1.0, 1.0, 1.0);
 float lightPower = 5.0;
-float shininess = 2048.0;
+float shininess = 200.0;
 
 void main()
 {

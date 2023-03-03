@@ -13,7 +13,7 @@ out vec3 texCoord;
 
 void main()
 {
-    gl_Position = projection * view * vec4(position, 1.0);
-    vec4 pos = inverse(projection * camView) * vec4((position), 0.001);
-    texCoord = vec3(pos.x, pos.y, pos.z);
+    gl_Position = vec4(position, 1.0);
+    vec4 pos = camView * vec4((position), 0.0005);
+    texCoord = pos.xyz;
 }

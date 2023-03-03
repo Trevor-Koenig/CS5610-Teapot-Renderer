@@ -488,7 +488,7 @@ void idleCallback()
 
 
     // std::cout << "yRot: " << yRot << "\n";
-    cy::Matrix3f rotMatrix = cy::Matrix3f::RotationXYZ(xRot, yRot, zRot);
+    cy::Matrix3f rotMatrix = cy::Matrix3f::RotationXYZ(-xRot, -yRot, zRot);
     cy::Matrix4f scaleMatrix = cy::Matrix4f::Scale(cy::Vec3f(distance, distance, distance));
     // for teapot
     //cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, -5.5f));
@@ -516,13 +516,13 @@ void idleCallback()
     cy::Matrix4f planeView = cy::Matrix4f::View(planeViewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f)) * planeScaleMatrix;
     // define how the camera moves relative to the environment
     // camera should rotate faster than the object due to parallax
-    cy::Matrix3f camRotMatrix = cy::Matrix3f::RotationXYZ(xRot, yRot, -zRot);
-    cy::Vec3f camViewPos = camRotMatrix * cy::Vec3f(0.0f, 0.0f, -100.0f);
+    cy::Matrix3f camRotMatrix = cy::Matrix3f::RotationXYZ(xRot, yRot, zRot);
+    cy::Vec3f camViewPos = camRotMatrix * cy::Vec3f(0.0f, 0.0f, 100.0f);
     cy::Matrix4f camView = cy::Matrix4f::View(camViewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
-    planeShaders["view"] = planeView;
-    planeShaders["camView"] = camView;
+    planeShaders["view"] = camView;
+    planeShaders["camView"] = (projMatrix * camView).GetInverse();
     planeShaders["projection"] = projMatrix;
-    planeShaders["viewPos"] = viewPos;
+    planeShaders["viewPos"] = camViewPos;
     
 
 
@@ -590,22 +590,8 @@ void setRotationAndDistance(float& xRot, float& yRot, float& zRot, float& distan
         float yDelt = float(mouseY - prevMouseY) / (0.2 * windowHeight);
         float xDelt = float(mouseX - prevMouseX) / (0.2 * windowWidth);
         // dont ask me why these have to be flipped, but if you know let me know
-        if (yRot < DEG2RAD(180.0f))
-        {
-            xRot += yDelt;
-        }
-        else
-        {
-            xRot -= yDelt;
-        }
-        if (xRot < DEG2RAD(180.0f))
-        {
-            yRot += xDelt;
-        }
-        else
-        {
-            yRot -= xDelt;
-        }
+        xRot -= yDelt;
+        yRot += xDelt;
         // zRot -= float((mouseX - prevMouseX) + (mouseY - prevMouseY)) / 4.0f;
     }
     else if (rightMouse)
