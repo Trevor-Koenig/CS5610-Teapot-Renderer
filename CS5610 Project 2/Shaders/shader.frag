@@ -19,7 +19,7 @@ uniform samplerCube env;
 vec4 texColor = texture(env, reflection);
 vec3 objColor = texColor.rgb;
 float alpha = texColor.a;
-vec3 specColor = vec3(1.0, 1.0, 1.0);
+vec3 specColor = vec3(1.0, 0.8, 0.1);
 vec3 lightColor = vec3(1.0, 1.0, 1.0);
 float lightPower = 5.0;
 float shininess = 200.0;

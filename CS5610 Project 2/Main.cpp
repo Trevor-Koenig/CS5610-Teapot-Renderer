@@ -28,6 +28,7 @@ void idleCallback();
 void createEnvironmentQuad();
 void createArgumentObject(int argc, char* argv[]);
 void createScenePlane();
+bool createDepthBuffer(int bufferWidth, int bufferHeight);
 void setRotationAndDistance(float& xRot, float& yRot, float& zRot, float& distance);
 float DEG2RAD(float degrees);
 
@@ -42,6 +43,7 @@ GLuint shadowMap;
 GLuint cityEnv;
 int numElem;
 cy::GLSLProgram SphereShaders;
+cy::GLSLProgram environmentShaders;
 cy::GLSLProgram planeShaders;
 cyGLTexture2D tex;
 
@@ -98,7 +100,6 @@ int main(int argc, char* argv[])
     
     // define all objects to be rendered and their textures
     createEnvironmentQuad();
-
     if (argc > 1)
     {
         createArgumentObject(argc, argv);
@@ -108,6 +109,7 @@ int main(int argc, char* argv[])
         std::cout << "Object file path not found. Please check main arguments.\n";
         exit(10);
     }
+    createScenePlane();
 
     
     /**
@@ -118,8 +120,8 @@ int main(int argc, char* argv[])
     // initialize CyGL
     
     SphereShaders.BuildFiles("Shaders\\shader.vert", "Shaders\\shader.frag");
-
-    planeShaders.BuildFiles("Shaders\\envShader.vert", "Shaders\\envShader.frag");
+    environmentShaders.BuildFiles("Shaders\\envShader.vert", "Shaders\\envShader.frag");
+    planeShaders.BuildFiles("Shaders\\Passthrough.vert", "Shaders\\SimpleTexture.frag");
     
 
     // clear scene
@@ -131,7 +133,7 @@ int main(int argc, char* argv[])
 
     // draw plane with texture
     glBindVertexArray(envVao);
-    planeShaders.Bind();
+    environmentShaders.Bind();
     glDepthMask(GL_FALSE);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glDepthMask(GL_TRUE);
@@ -177,17 +179,21 @@ void drawNewFrame()
 
     // draw plane with texture
     glBindVertexArray(envVao);
-    planeShaders.Bind();
+    environmentShaders.Bind();
     glDepthMask(GL_FALSE);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glDepthMask(GL_TRUE);
 
-    // render Sphere
+    // render argument object (tb to depth map)
     // set shaders and draw Sphere to texture
     glBindVertexArray(SphereVao);
     SphereShaders.Bind();
     glDrawArrays(GL_TRIANGLES, 0, numElem);
 
+    // render plane under argument object (also used for testing as a plane to render depth map to)
+    glBindVertexArray(planeVao);
+    planeShaders.Bind();
+    glDrawArrays(GL_TRIANGLES, 0, 6);
     glutSwapBuffers();
     return;
 }
@@ -295,39 +301,39 @@ void idleCallback()
     cy::Matrix3f rotMatrix = cy::Matrix3f::RotationXYZ(-xRot, -yRot, zRot);
     cy::Matrix4f scaleMatrix = cy::Matrix4f::Scale(cy::Vec3f(distance, distance, distance));
     // for teapot
-    //cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, -5.5f));
+    cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, -5.5f, 0.0f));
     // for sphere
-    cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, 0.0f));
+    // cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, 0.0f));
     cy::Vec3f viewPos = rotMatrix * cy::Vec3f(0.0f, 0.0f, 100.0f);
     cy::Matrix4f model = scaleMatrix * trans;
     cy::Matrix4f view = cy::Matrix4f::View(viewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
     cy::Matrix4f projMatrix = cy::Matrix4f::Perspective(DEG2RAD(40), float(windowWidth) / float(windowHeight), 0.1f, 1000.0f);
-    cy::Matrix4f mvp = projMatrix * view * model;
 
-    // recompile shaders, set constants, and bind them
+    // set constants for argument object
     SphereShaders["model"] = model;
     SphereShaders["view"] = view;
     SphereShaders["projection"] = projMatrix;
-    SphereShaders["lightPos"] =  cy::Vec3f(0.0f, 1000.0f, 0.0f);
+    SphereShaders["lightPos"] =  cy::Vec3f(0.0f, 1000.0f, 100.0f);
     SphereShaders["viewPos"] = viewPos;
-    // why don't I need this?
-    // SphereShaders["tex"] = 0;
 
-    
-    cy::Matrix3f planeRotMatrix = cy::Matrix3f::RotationXYZ(altXRot, altYRot, altZRot);
-    cy::Matrix4f planeScaleMatrix = cy::Matrix4f::Scale(cy::Vec3f(altDistance, altDistance, altDistance));
-    cy::Vec3f planeViewPos = planeRotMatrix * cy::Vec3f(0.0f, 0.0f, 1.0f);
-    cy::Matrix4f planeView = cy::Matrix4f::View(planeViewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f)) * planeScaleMatrix;
     // define how the camera moves relative to the environment
     // camera should rotate faster than the object due to parallax
     cy::Matrix3f camRotMatrix = cy::Matrix3f::RotationXYZ(xRot, yRot, zRot);
     cy::Vec3f camViewPos = camRotMatrix * cy::Vec3f(0.0f, 0.0f, 100.0f);
     cy::Matrix4f camView = cy::Matrix4f::View(camViewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
-    planeShaders["view"] = camView;
-    planeShaders["camView"] = (projMatrix * camView).GetInverse();
-    planeShaders["projection"] = projMatrix;
-    planeShaders["viewPos"] = camViewPos;
+    environmentShaders["view"] = camView;
+    environmentShaders["camView"] = (projMatrix * camView).GetInverse();
+    environmentShaders["projection"] = projMatrix;
+    environmentShaders["viewPos"] = camViewPos;
     
+    // rotate the plane from vertical to horizontal
+    cy::Matrix3f planeRotation = cy::Matrix3f::RotationXYZ(DEG2RAD(90.0f), 0.0f, 0.0f);
+    // move the plane down to beneath the main scen object (usually a teapot)
+    cy::Matrix4f planeTranslation = cy::Matrix4f::Translation(cy::Vec3f(0.0f, -10.0f, 0.0f));
+    // define the scale of the teapot to fit the size of the current scene objects
+    cy::Matrix4f planeScale = cy::Matrix4f::Scale(cy::Vec3f(0.4f, 0.4f, 0.4f));
+    cy::Matrix4f planeModel = planeTranslation * planeScale * planeRotation;
+    planeShaders["mvp"] = projMatrix * view * planeModel;
 
 
     // Tell GLUT to redraw
@@ -594,6 +600,9 @@ void createArgumentObject(int argc, char* argv[])
 }
 
 
+/// <summary>
+/// Readies the linked Vao to be rendered as a plane in the scene
+/// </summary>
 void createScenePlane()
 {
     GLuint planeVbo;
@@ -603,12 +612,12 @@ void createScenePlane()
 
     // define plane positioning
     float planeVert[] = {
-        1.0,  1.0, 0.0,
-       -1.0,  1.0, 0.0,
-        1.0, -1.0, 0.0,
-       -1.0,  1.0, 0.0,
-       -1.0, -1.0, 0.0,
-        1.0, -1.0, 0.0
+        100.0,  100.0, 0.0,
+       -100.0,  100.0, 0.0,
+        100.0, -100.0, 0.0,
+       -100.0,  100.0, 0.0,
+       -100.0, -100.0, 0.0,
+        100.0, -100.0, 0.0
     };
 
     // define plane normals
@@ -630,12 +639,12 @@ void createScenePlane()
 
     // define texture coordinates
     float planeTxcArray[] = {
-        1.0, 1.0,
-        0.0, 1.0,
-        1.0, 0.0,
-        0.0, 1.0,
+        100.0, 100.0,
+        0.0, 100.0,
+        100.0, 0.0,
+        0.0, 100.0,
         0.0, 0.0,
-        1.0, 0.0
+        100.0, 0.0
     };
 
     // create plane plane VAO and vbo
@@ -668,6 +677,34 @@ void createScenePlane()
 }
 
 
+bool createDepthBuffer(int bufferWidth, int bufferHeight)
+{
+    // methosd sourced from: http://www.opengl-tutorial.org/intermediate-tutorials/tutorial-16-shadow-mapping/
+    // The framebuffer, which regroups 0, 1, or more textures, and 0 or 1 depth buffer.
+    GLuint FramebufferName = 0;
+    glGenFramebuffers(1, &FramebufferName);
+    glBindFramebuffer(GL_FRAMEBUFFER, FramebufferName);
+
+    // Depth texture. Slower than a depth buffer, but you can sample it later in your shader
+    GLuint depthTexture;
+    glGenTextures(1, &depthTexture);
+    glBindTexture(GL_TEXTURE_2D, depthTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16, 1024, 1024, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, depthTexture, 0);
+
+    glDrawBuffer(GL_NONE); // No color buffer is drawn to.
+
+    // Always check that our framebuffer is ok
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        return false;
+}
+
+
 /**
 * 
 * Set the x, y, and z rotation values given based on mouse location.
@@ -694,7 +731,7 @@ void setRotationAndDistance(float& xRot, float& yRot, float& zRot, float& distan
         float yDelt = float(mouseY - prevMouseY) / (0.2 * windowHeight);
         float xDelt = float(mouseX - prevMouseX) / (0.2 * windowWidth);
         // dont ask me why these have to be flipped, but if you know let me know
-        xRot -= yDelt;
+        xRot += yDelt;
         yRot += xDelt;
         // zRot -= float((mouseX - prevMouseX) + (mouseY - prevMouseY)) / 4.0f;
     }
