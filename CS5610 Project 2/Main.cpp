@@ -17,6 +17,10 @@
 #include "CyCodeBase/cyGL.h"
 #include "lodepng/lodepng.h"
 #include "lodepng/lodepng.cpp"
+#include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtc/type_ptr.hpp"
+#include "glm/vec3.hpp"
+#include "glm/mat4x4.hpp"
 
 
 void createOpenGLWindow(int width, int height);
@@ -39,12 +43,15 @@ int windowWidth, windowHeight;
 GLuint SphereVao;
 GLuint envVao;
 GLuint planeVao;
+GLuint shadowFBO;
 GLuint shadowMap;
 GLuint cityEnv;
+GLuint depthTexture;
 int numElem;
 cy::GLSLProgram SphereShaders;
 cy::GLSLProgram environmentShaders;
 cy::GLSLProgram planeShaders;
+cy::GLSLProgram shadowMapShaders;
 cyGLTexture2D tex;
 
 
@@ -111,6 +118,12 @@ int main(int argc, char* argv[])
     }
     createScenePlane();
 
+    GLint origFB;
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &origFB);
+    bool success = createDepthBuffer(windowWidth, windowHeight);
+    if (!success) { return 10; }
+    glBindFramebuffer(GL_FRAMEBUFFER, origFB);
+
     
     /**
     * 
@@ -122,14 +135,23 @@ int main(int argc, char* argv[])
     SphereShaders.BuildFiles("Shaders\\shader.vert", "Shaders\\shader.frag");
     environmentShaders.BuildFiles("Shaders\\envShader.vert", "Shaders\\envShader.frag");
     planeShaders.BuildFiles("Shaders\\Passthrough.vert", "Shaders\\SimpleTexture.frag");
+    shadowMapShaders.BuildFiles("Shaders\\shadowMap.vert", "Shaders\\shadowMap.frag");
+
+    std::cout << "SphereShaders id: " << SphereShaders.GetID() << "\n";
+    std::cout << "environmentShaders id: " << environmentShaders.GetID() << "\n";
+    std::cout << "planeShaders id: " << planeShaders.GetID() << "\n";
+    std::cout << "shadowMapShaders id: " << shadowMapShaders.GetID() << "\n";
+    char t = 0;
+    //std::cin >> t;
     
 
     // clear scene
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     // get original frame buffer id (should be the back buffer)
-    GLint origFB;
+    origFB;
     glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &origFB);
+    //std::cout << origFB << "\n";
 
     // draw plane with texture
     glBindVertexArray(envVao);
@@ -170,12 +192,55 @@ int main(int argc, char* argv[])
 **/
 void drawNewFrame()
 {
-    // clear scene
+    /*
+    // get original frame buffer id (should be the back buffer)
+    GLint origFB;
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &origFB);
+
+    // set frame target and render
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, frameBuffer);
+    glViewport(0, 0, windowWidth, windowHeight);
+    GLclampf Red = 0.5f, Green = 0.5f, Blue = 0.5f, Alpha = 0.0f; // sourced from: https://youtu.be/6dtqg0r28Yc
+    glClearColor(Red, Green, Blue, Alpha);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    // set shaders and draw teapot to texture
+    glBindVertexArray(teapotVao);
+    tex.Bind(0);
+    teapotShaders.Bind();
+    glDrawArrays(GL_TRIANGLES, 0, numElem);
+
+    // draw plane with rendered texture
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, origFB);
+    glViewport(0, 0, windowWidth, windowHeight);
+    Red = 0.0f, Green = 0.0f, Blue = 0.0f, Alpha = 0.0f; // sourced from: https://youtu.be/6dtqg0r28Yc
+    glClearColor(Red, Green, Blue, Alpha);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glBindVertexArray(planeVao);
+    glBindTexture(GL_TEXTURE_2D, renderTexture);
+    planeShaders.Bind();
+
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    glutSwapBuffers();
+    return;
+    */
 
     // get original frame buffer id (should be the back buffer)
     GLint origFB;
     glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &origFB);
+
+    // draw depth texture
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shadowMap);
+    glViewport(0, 0, windowWidth, windowHeight);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glBindVertexArray(SphereVao);
+    SphereShaders.Bind();
+    glDrawArrays(GL_TRIANGLES, 0, numElem);
+
+    // return to back buffer
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, origFB);
+    glViewport(0, 0, windowWidth, windowHeight);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     // draw plane with texture
     glBindVertexArray(envVao);
@@ -192,6 +257,8 @@ void drawNewFrame()
 
     // render plane under argument object (also used for testing as a plane to render depth map to)
     glBindVertexArray(planeVao);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, depthTexture);
     planeShaders.Bind();
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glutSwapBuffers();
@@ -309,11 +376,13 @@ void idleCallback()
     cy::Matrix4f view = cy::Matrix4f::View(viewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
     cy::Matrix4f projMatrix = cy::Matrix4f::Perspective(DEG2RAD(40), float(windowWidth) / float(windowHeight), 0.1f, 1000.0f);
 
+    cy::Vec3f lightPos = cy::Vec3f(0.0f, 1000.0f, 100.0f);
+
     // set constants for argument object
     SphereShaders["model"] = model;
     SphereShaders["view"] = view;
     SphereShaders["projection"] = projMatrix;
-    SphereShaders["lightPos"] =  cy::Vec3f(0.0f, 1000.0f, 100.0f);
+    SphereShaders["lightPos"] =  lightPos;
     SphereShaders["viewPos"] = viewPos;
 
     // define how the camera moves relative to the environment
@@ -335,6 +404,16 @@ void idleCallback()
     cy::Matrix4f planeModel = planeTranslation * planeScale * planeRotation;
     planeShaders["mvp"] = projMatrix * view * planeModel;
 
+    //create shadow map matrices
+    shadowMapShaders.Bind();
+    float near_plane = 1.0f, far_plane = 7.5f;
+    glm::mat4 lightProjection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane);
+    glm::mat4 lightView = glm::lookAt(  glm::vec3(lightPos.x, lightPos.y, lightPos.z),
+                                        glm::vec3(0.0f, 0.0f, 0.0f),
+                                        glm::vec3(0.0f, 1.0f, 0.0f));
+    glm::mat4 lightSpaceMatrix = lightProjection * lightView;
+    GLint lightSpaceMatrixLocation = glGetUniformLocation(shadowMapShaders.GetID(), "depthMVP");
+    glUniformMatrix4fv(lightSpaceMatrixLocation, 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
 
     // Tell GLUT to redraw
     glutPostRedisplay();
@@ -639,12 +718,12 @@ void createScenePlane()
 
     // define texture coordinates
     float planeTxcArray[] = {
-        100.0, 100.0,
-        0.0, 100.0,
-        100.0, 0.0,
-        0.0, 100.0,
+        1.0, 1.0,
+        0.0, 1.0,
+        1.0, 0.0,
+        0.0, 1.0,
         0.0, 0.0,
-        100.0, 0.0
+        1.0, 0.0
     };
 
     // create plane plane VAO and vbo
@@ -679,17 +758,15 @@ void createScenePlane()
 
 bool createDepthBuffer(int bufferWidth, int bufferHeight)
 {
-    // methosd sourced from: http://www.opengl-tutorial.org/intermediate-tutorials/tutorial-16-shadow-mapping/
+    // method sourced from: http://www.opengl-tutorial.org/intermediate-tutorials/tutorial-16-shadow-mapping/
     // The framebuffer, which regroups 0, 1, or more textures, and 0 or 1 depth buffer.
-    GLuint FramebufferName = 0;
-    glGenFramebuffers(1, &FramebufferName);
-    glBindFramebuffer(GL_FRAMEBUFFER, FramebufferName);
+    glGenFramebuffers(1, &shadowFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
 
     // Depth texture. Slower than a depth buffer, but you can sample it later in your shader
-    GLuint depthTexture;
     glGenTextures(1, &depthTexture);
     glBindTexture(GL_TEXTURE_2D, depthTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16, 1024, 1024, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, bufferWidth, bufferHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -698,10 +775,13 @@ bool createDepthBuffer(int bufferWidth, int bufferHeight)
     glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, depthTexture, 0);
 
     glDrawBuffer(GL_NONE); // No color buffer is drawn to.
+    glReadBuffer(GL_NONE);
 
     // Always check that our framebuffer is ok
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
         return false;
+
+    return true;
 }
 
 
