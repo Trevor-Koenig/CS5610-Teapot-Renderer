@@ -44,7 +44,6 @@ GLuint SphereVao;
 GLuint envVao;
 GLuint planeVao;
 GLuint shadowFBO;
-GLuint shadowMap;
 GLuint cityEnv;
 GLuint depthTexture;
 int numElem;
@@ -192,49 +191,16 @@ int main(int argc, char* argv[])
 **/
 void drawNewFrame()
 {
-    /*
-    // get original frame buffer id (should be the back buffer)
-    GLint origFB;
-    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &origFB);
-
-    // set frame target and render
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, frameBuffer);
-    glViewport(0, 0, windowWidth, windowHeight);
-    GLclampf Red = 0.5f, Green = 0.5f, Blue = 0.5f, Alpha = 0.0f; // sourced from: https://youtu.be/6dtqg0r28Yc
-    glClearColor(Red, Green, Blue, Alpha);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    // set shaders and draw teapot to texture
-    glBindVertexArray(teapotVao);
-    tex.Bind(0);
-    teapotShaders.Bind();
-    glDrawArrays(GL_TRIANGLES, 0, numElem);
-
-    // draw plane with rendered texture
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, origFB);
-    glViewport(0, 0, windowWidth, windowHeight);
-    Red = 0.0f, Green = 0.0f, Blue = 0.0f, Alpha = 0.0f; // sourced from: https://youtu.be/6dtqg0r28Yc
-    glClearColor(Red, Green, Blue, Alpha);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glBindVertexArray(planeVao);
-    glBindTexture(GL_TEXTURE_2D, renderTexture);
-    planeShaders.Bind();
-
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-
-    glutSwapBuffers();
-    return;
-    */
-
     // get original frame buffer id (should be the back buffer)
     GLint origFB;
     glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &origFB);
 
     // draw depth texture
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shadowMap);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shadowFBO);
     glViewport(0, 0, windowWidth, windowHeight);
     glClear(GL_DEPTH_BUFFER_BIT);
     glBindVertexArray(SphereVao);
-    SphereShaders.Bind();
+    shadowMapShaders.Bind();
     glDrawArrays(GL_TRIANGLES, 0, numElem);
 
     // return to back buffer
@@ -257,7 +223,7 @@ void drawNewFrame()
 
     // render plane under argument object (also used for testing as a plane to render depth map to)
     glBindVertexArray(planeVao);
-    glActiveTexture(GL_TEXTURE1);
+    //depthTexture = tex.GetID();
     glBindTexture(GL_TEXTURE_2D, depthTexture);
     planeShaders.Bind();
     glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -376,7 +342,7 @@ void idleCallback()
     cy::Matrix4f view = cy::Matrix4f::View(viewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
     cy::Matrix4f projMatrix = cy::Matrix4f::Perspective(DEG2RAD(40), float(windowWidth) / float(windowHeight), 0.1f, 1000.0f);
 
-    cy::Vec3f lightPos = cy::Vec3f(0.0f, 1000.0f, 100.0f);
+    cy::Vec3f lightPos = cy::Vec3f(0.0f, 100.0f, 40.0f);
 
     // set constants for argument object
     SphereShaders["model"] = model;
@@ -389,7 +355,7 @@ void idleCallback()
     // camera should rotate faster than the object due to parallax
     cy::Matrix3f camRotMatrix = cy::Matrix3f::RotationXYZ(xRot, yRot, zRot);
     cy::Vec3f camViewPos = camRotMatrix * cy::Vec3f(0.0f, 0.0f, 100.0f);
-    cy::Matrix4f camView = cy::Matrix4f::View(camViewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
+    cy::Matrix4f camView = cy::Matrix4f::View(camViewPos, cy::Vec3f(0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
     environmentShaders["view"] = camView;
     environmentShaders["camView"] = (projMatrix * camView).GetInverse();
     environmentShaders["projection"] = projMatrix;
@@ -406,14 +372,19 @@ void idleCallback()
 
     //create shadow map matrices
     shadowMapShaders.Bind();
-    float near_plane = 1.0f, far_plane = 7.5f;
-    glm::mat4 lightProjection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane);
-    glm::mat4 lightView = glm::lookAt(  glm::vec3(lightPos.x, lightPos.y, lightPos.z),
-                                        glm::vec3(0.0f, 0.0f, 0.0f),
-                                        glm::vec3(0.0f, 1.0f, 0.0f));
-    glm::mat4 lightSpaceMatrix = lightProjection * lightView;
-    GLint lightSpaceMatrixLocation = glGetUniformLocation(shadowMapShaders.GetID(), "depthMVP");
-    glUniformMatrix4fv(lightSpaceMatrixLocation, 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
+    float near_plane = lightPos.Length() * 0.9, far_plane = lightPos.Length() * 1.1;
+    //glm::mat4 lightProjection = glm::ortho(-100.0f, 100.0f, -100.0f, 100.0f, near_plane, far_plane);
+    //glm::mat4 lightView = glm::lookAt( glm::vec3(lightPos.x, lightPos.y, lightPos.z),
+    //                                    glm::vec3(0.0f),
+    //                                    glm::vec3(0.0f, 1.0f, 0.0f) );
+    //glm::mat4 lightSpaceMatrix = lightProjection * lightView;
+    //GLint lightSpaceMatrixLocation = glGetUniformLocation(shadowMapShaders.GetID(), "depthMVP");
+    //glUniformMatrix4fv(lightSpaceMatrixLocation, 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
+
+    cy::Matrix4f lightProjMatrix = cy::Matrix4f::Perspective(DEG2RAD(40), float(windowWidth) / float(windowHeight), near_plane, far_plane);
+    cy::Matrix4f lightView = cy::Matrix4f::View(lightPos, cy::Vec3f(0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
+    cy::Matrix4f depthMVP = lightProjMatrix * lightView;
+    shadowMapShaders["depthMVP"] = depthMVP;
 
     // Tell GLUT to redraw
     glutPostRedisplay();
@@ -767,12 +738,12 @@ bool createDepthBuffer(int bufferWidth, int bufferHeight)
     glGenTextures(1, &depthTexture);
     glBindTexture(GL_TEXTURE_2D, depthTexture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, bufferWidth, bufferHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, depthTexture, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTexture, 0);
 
     glDrawBuffer(GL_NONE); // No color buffer is drawn to.
     glReadBuffer(GL_NONE);
