@@ -417,7 +417,7 @@ void createOpenGLWindow(int width, int height)
     glutInitWindowSize(width, height);
     glutInitWindowPosition(100, 50);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
-    glutCreateWindow("CS 5610 Project 6 - Environment Mapping\tTrevor Koenig");
+    glutCreateWindow("CS 5610 Project 7 - Shadow Mapping\tTrevor Koenig");
     glEnable(GL_DEPTH_TEST);
 
     const char* versionGL = (const char*)glGetString(GL_VERSION);
