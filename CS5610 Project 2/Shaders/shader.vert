@@ -10,12 +10,14 @@ uniform vec3 viewPos;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform mat4 shadowMVP;
 
 out vec3 FragPos;
 out vec3 reflection;
 out vec3 Normal;
 out vec3 camPos;
 out vec2 texCoord;
+out vec4 shadowCoord;
 
 void main()
 {
@@ -31,4 +33,5 @@ void main()
 	Normal = normal;
 	texCoord = txc;
 	camPos = viewPos;
+	shadowCoord = shadowMVP * vec4(position, 1.0);
 }

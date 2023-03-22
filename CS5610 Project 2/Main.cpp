@@ -40,14 +40,14 @@ bool leftMouse, rightMouse;
 bool altMouseDrag;
 int mouseX, mouseY;
 int windowWidth, windowHeight;
-GLuint SphereVao;
+GLuint teapotVao;
 GLuint envVao;
 GLuint planeVao;
 GLuint shadowFBO;
 GLuint cityEnv;
 GLuint depthTexture;
 int numElem;
-cy::GLSLProgram SphereShaders;
+cy::GLSLProgram teapotShaders;
 cy::GLSLProgram environmentShaders;
 cy::GLSLProgram planeShaders;
 cy::GLSLProgram shadowMapShaders;
@@ -119,7 +119,7 @@ int main(int argc, char* argv[])
 
     GLint origFB;
     glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &origFB);
-    bool success = createDepthBuffer(windowWidth, windowHeight);
+    bool success = createDepthBuffer(2*windowWidth, 2*windowHeight);
     if (!success) { return 10; }
     glBindFramebuffer(GL_FRAMEBUFFER, origFB);
 
@@ -131,12 +131,12 @@ int main(int argc, char* argv[])
     **/
     // initialize CyGL
     
-    SphereShaders.BuildFiles("Shaders\\shader.vert", "Shaders\\shader.frag");
+    teapotShaders.BuildFiles("Shaders\\shader.vert", "Shaders\\shader.frag");
     environmentShaders.BuildFiles("Shaders\\envShader.vert", "Shaders\\envShader.frag");
     planeShaders.BuildFiles("Shaders\\Passthrough.vert", "Shaders\\SimpleTexture.frag");
     shadowMapShaders.BuildFiles("Shaders\\shadowMap.vert", "Shaders\\shadowMap.frag");
 
-    std::cout << "SphereShaders id: " << SphereShaders.GetID() << "\n";
+    std::cout << "teapotShaders id: " << teapotShaders.GetID() << "\n";
     std::cout << "environmentShaders id: " << environmentShaders.GetID() << "\n";
     std::cout << "planeShaders id: " << planeShaders.GetID() << "\n";
     std::cout << "shadowMapShaders id: " << shadowMapShaders.GetID() << "\n";
@@ -159,10 +159,10 @@ int main(int argc, char* argv[])
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glDepthMask(GL_TRUE);
 
-    // render Sphere
-    // set shaders and draw Sphere to texture
-    glBindVertexArray(SphereVao);
-    SphereShaders.Bind();
+    // render teapot
+    // set shaders and draw teapot to texture
+    glBindVertexArray(teapotVao);
+    teapotShaders.Bind();
     glDrawArrays(GL_TRIANGLES, 0, numElem);
 
     std::cout << "Finished drawing first frame. Entering main loop\n";
@@ -197,9 +197,9 @@ void drawNewFrame()
 
     // draw depth texture
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shadowFBO);
-    glViewport(0, 0, windowWidth, windowHeight);
+    glViewport(0, 0, 2*windowWidth, 2*windowHeight);
     glClear(GL_DEPTH_BUFFER_BIT);
-    glBindVertexArray(SphereVao);
+    glBindVertexArray(teapotVao);
     shadowMapShaders.Bind();
     glDrawArrays(GL_TRIANGLES, 0, numElem);
 
@@ -216,15 +216,13 @@ void drawNewFrame()
     glDepthMask(GL_TRUE);
 
     // render argument object (tb to depth map)
-    // set shaders and draw Sphere to texture
-    glBindVertexArray(SphereVao);
-    SphereShaders.Bind();
+    // set shaders and draw teapot to texture
+    glBindVertexArray(teapotVao);
+    teapotShaders.Bind();
     glDrawArrays(GL_TRIANGLES, 0, numElem);
 
     // render plane under argument object (also used for testing as a plane to render depth map to)
     glBindVertexArray(planeVao);
-    //depthTexture = tex.GetID();
-    glBindTexture(GL_TEXTURE_2D, depthTexture);
     planeShaders.Bind();
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glutSwapBuffers();
@@ -335,31 +333,31 @@ void idleCallback()
     cy::Matrix4f scaleMatrix = cy::Matrix4f::Scale(cy::Vec3f(distance, distance, distance));
     // for teapot
     cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, -5.5f, 0.0f));
-    // for sphere
+    // for teapot
     // cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, 0.0f));
-    cy::Vec3f viewPos = rotMatrix * cy::Vec3f(0.0f, 0.0f, 100.0f);
-    cy::Matrix4f model = scaleMatrix * trans;
+    cy::Vec3f viewPos = (rotMatrix * cy::Vec3f(0.0f, 0.0f, 100.0f)) * distance;
+    cy::Matrix4f model = trans;
     cy::Matrix4f view = cy::Matrix4f::View(viewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
     cy::Matrix4f projMatrix = cy::Matrix4f::Perspective(DEG2RAD(40), float(windowWidth) / float(windowHeight), 0.1f, 1000.0f);
 
-    cy::Vec3f lightPos = cy::Vec3f(0.0f, 100.0f, 40.0f);
+    cy::Vec3f lightPos = cy::Vec3f(0.0f, 100.0f, 20.0f);
 
     // set constants for argument object
-    SphereShaders["model"] = model;
-    SphereShaders["view"] = view;
-    SphereShaders["projection"] = projMatrix;
-    SphereShaders["lightPos"] =  lightPos;
-    SphereShaders["viewPos"] = viewPos;
+    teapotShaders["model"] = model;
+    teapotShaders["view"] = view;
+    teapotShaders["projection"] = projMatrix;
+    teapotShaders["lightPos"] =  lightPos;
+    teapotShaders["viewPos"] = viewPos;
 
     // define how the camera moves relative to the environment
     // camera should rotate faster than the object due to parallax
     cy::Matrix3f camRotMatrix = cy::Matrix3f::RotationXYZ(xRot, yRot, zRot);
-    cy::Vec3f camViewPos = camRotMatrix * cy::Vec3f(0.0f, 0.0f, 100.0f);
-    cy::Matrix4f camView = cy::Matrix4f::View(camViewPos, cy::Vec3f(0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
+    cy::Vec3f camPos = camRotMatrix * cy::Vec3f(0.0f, 0.0f, 100.0f);
+    cy::Matrix4f camView = cy::Matrix4f::View(camPos, cy::Vec3f(0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
     environmentShaders["view"] = camView;
     environmentShaders["camView"] = (projMatrix * camView).GetInverse();
     environmentShaders["projection"] = projMatrix;
-    environmentShaders["viewPos"] = camViewPos;
+    environmentShaders["viewPos"] = camPos;
     
     // rotate the plane from vertical to horizontal
     cy::Matrix3f planeRotation = cy::Matrix3f::RotationXYZ(DEG2RAD(90.0f), 0.0f, 0.0f);
@@ -371,20 +369,23 @@ void idleCallback()
     planeShaders["mvp"] = projMatrix * view * planeModel;
 
     //create shadow map matrices
-    shadowMapShaders.Bind();
     float near_plane = lightPos.Length() * 0.9, far_plane = lightPos.Length() * 1.1;
-    //glm::mat4 lightProjection = glm::ortho(-100.0f, 100.0f, -100.0f, 100.0f, near_plane, far_plane);
-    //glm::mat4 lightView = glm::lookAt( glm::vec3(lightPos.x, lightPos.y, lightPos.z),
-    //                                    glm::vec3(0.0f),
-    //                                    glm::vec3(0.0f, 1.0f, 0.0f) );
-    //glm::mat4 lightSpaceMatrix = lightProjection * lightView;
-    //GLint lightSpaceMatrixLocation = glGetUniformLocation(shadowMapShaders.GetID(), "depthMVP");
-    //glUniformMatrix4fv(lightSpaceMatrixLocation, 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
-
-    cy::Matrix4f lightProjMatrix = cy::Matrix4f::Perspective(DEG2RAD(40), float(windowWidth) / float(windowHeight), near_plane, far_plane);
+    cy::Matrix4f lightProjection = projMatrix;//cy::Matrix4f::Perspective(DEG2RAD(40), float(windowWidth) / float(windowHeight), near_plane, far_plane);
     cy::Matrix4f lightView = cy::Matrix4f::View(lightPos, cy::Vec3f(0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
-    cy::Matrix4f depthMVP = lightProjMatrix * lightView;
+    cy::Matrix4f depthMVP = projMatrix * lightView * model;//lightProjection * lightView;
     shadowMapShaders["depthMVP"] = depthMVP;
+
+    //cy::Matrix4f biasMatrix(
+    //    0.5, 0.0, 0.0, 0.0,
+    //    0.0, 0.5, 0.0, 0.0,
+    //    0.0, 0.0, 0.5, 0.0,
+    //    0.5, 0.5, 0.5, 1.0
+    //);
+
+    float bias = lightPos.Length() * 0.00000008;
+    cy::Matrix4f biasMatrix = cy::Matrix4f::Translation(cy::Vec3f(0.5f, 0.5f, (0.5f-bias))) * cy::Matrix4f::Scale(cy::Vec3f(0.5f, 0.5f, 0.5f));
+    planeShaders["shadowMVP"] = biasMatrix * projMatrix * lightView * planeModel;
+    teapotShaders["shadowMVP"] = biasMatrix * projMatrix * lightView * model;
 
     // Tell GLUT to redraw
     glutPostRedisplay();
@@ -580,8 +581,8 @@ void createArgumentObject(int argc, char* argv[])
     numElem *= 3;
 
     // create VAO
-    glGenVertexArrays(1, &SphereVao);
-    glBindVertexArray(SphereVao);
+    glGenVertexArrays(1, &teapotVao);
+    glBindVertexArray(teapotVao);
 
     // create VBO
     glGenBuffers(1, &vbo);
@@ -610,7 +611,7 @@ void createArgumentObject(int argc, char* argv[])
     glEnableVertexAttribArray(1);
 
 
-    // create textures for Sphere
+    // create textures for teapot
     // attempt to load custom textures from command line, otherwise load default texturess
     std::vector<unsigned char> texture;
     unsigned int width, height;
@@ -738,6 +739,8 @@ bool createDepthBuffer(int bufferWidth, int bufferHeight)
     glGenTextures(1, &depthTexture);
     glBindTexture(GL_TEXTURE_2D, depthTexture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, bufferWidth, bufferHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -747,6 +750,7 @@ bool createDepthBuffer(int bufferWidth, int bufferHeight)
 
     glDrawBuffer(GL_NONE); // No color buffer is drawn to.
     glReadBuffer(GL_NONE);
+
 
     // Always check that our framebuffer is ok
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
