@@ -9,11 +9,19 @@ in vec3 camPos;
 
 layout(location = 0) out vec4 color;
 
+// define a vector which translates texture coordinates to vertex space
+vec2 normCoord = vec2(texCoord.x, 1-texCoord.y);
+
 // uniform vec3 objColor;
 // uniform vec3 lightColor;
 uniform vec3 lightPos;
+uniform sampler2D normalMap;
+vec3 normal = texture(normalMap, normCoord).xyz;
 
-vec4 texColor = vec4(1,0,0,1);
+// vec4 texColor = vec4(1,0,0,1);
+// show normal map
+vec4 texColor = texture(normalMap, normCoord);
+
 vec3 objColor = texColor.rgb;
 float alpha = texColor.a;
 vec3 specColor = vec3(1.0, 0.8, 0.1);
@@ -35,7 +43,7 @@ void main()
 	vec3 ambient = ambientStrength * lightColor;
 
 	// Diffuse 
-	vec3 norm = normalize(Normal);
+	vec3 norm = normalize(normal);
 	float diff = max(dot(norm, lightDir), 0.0);
 	vec3 diffuse = diff * lightColor;
 

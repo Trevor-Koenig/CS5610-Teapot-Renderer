@@ -29,17 +29,20 @@ void keyboardInterrupt(unsigned char key, int x, int y);
 void mouseButtonTracker(int button, int state, int x, int y);
 void mouseClickDrag(int x, int y);
 void idleCallback();
-void createScenePlane();
+void createScenePlane(GLuint& planeVao);
 void setRotationAndDistance(float& xRot, float& yRot, float& zRot, float& distance);
 float DEG2RAD(float degrees);
 
-bool leftMouse, rightMouse;
+bool leftMouse, rightMouse, spacebarToggle;
 bool altMouseDrag;
 int mouseX, mouseY;
 int windowWidth, windowHeight;
-GLuint planeVao;
+GLuint teapotPlaneVao;
+GLuint triangulationVao;
 cy::GLSLProgram planeShaders;
-cyGLTexture2D tex;
+cy::GLSLProgram triangulationShaders;
+cyGLTexture2D normTex;
+cyGLTexture2D dispTex;
 
 
 int main(int argc, char* argv[])
@@ -51,9 +54,12 @@ int main(int argc, char* argv[])
     *
     **/
     leftMouse = false; rightMouse = false;
+    spacebarToggle = false;
     altMouseDrag = false;
     mouseX = 0; mouseY = 0;
 
+    // if there is not a png normal map then exit - simple check
+    if (argc < 2) { exit(0); }
 
     // Initialize FreeGLUT
     glutInit(&argc, argv);
@@ -92,7 +98,42 @@ int main(int argc, char* argv[])
 
     
     // define all objects to be rendered and their textures
-    createScenePlane();
+    createScenePlane(teapotPlaneVao);
+    createScenePlane(triangulationVao);
+
+    // intialize textures
+    unsigned int width = 0; unsigned int height = 0;
+    std::vector<unsigned char> normTexture;
+    std::cout << argv[1] << std::endl;
+    std::string filename = argv[1];
+
+    unsigned error = lodepng::decode(normTexture, width, height, filename);
+
+    // create normal texture buffer now - load the normal map as a texture
+    normTex.Initialize();
+    normTex.SetImage(&normTexture[0], 4, width, height);
+    normTex.BuildMipmaps();
+    normTex.Bind(0);
+
+    bool useTesselation = false;
+    if (argc > 2)
+    {
+        // intialize textures
+        unsigned int width = 0; unsigned int height = 0;
+        std::vector<unsigned char> dispTexture;
+        std::cout << argv[1] << std::endl;
+        std::string filename = argv[1];
+
+        unsigned error = lodepng::decode(dispTexture, width, height, filename);
+        // create displacement texture buffer now - load the depth map as a texture
+        dispTex.Initialize();
+        dispTex.SetImage(&dispTexture[0], 4, width, height);
+        dispTex.BuildMipmaps();
+        dispTex.Bind(0);
+
+        // since a displacement texture was found we will also use tesselation shaders
+        useTesselation = true;
+    }
 
     
     /**
@@ -102,11 +143,24 @@ int main(int argc, char* argv[])
     **/
     // initialize CyGL
     
-    planeShaders.BuildFiles("Shaders\\shader.vert", "Shaders\\shader.frag");
-
-    std::cout << "planeShaders id: " << planeShaders.GetID() << "\n";
-    char t = 0;
-    //std::cin >> t;
+    if (useTesselation)
+    {
+        planeShaders.BuildFiles("Shaders\\shader.vert",
+                                "Shaders\\shader.frag",
+                                "",
+                                "Shaders\\shader.tesscontrol"
+                                );
+        triangulationShaders.BuildFiles("Shaders\\Passthrough.vert",
+                                        "Shaders\\SimpleTexture.frag",
+                                        "Shaders\\shader.geometry",
+                                        "Shaders\\shader.tesscontrol"
+                                        );
+    }
+    else
+    {
+        planeShaders.BuildFiles("Shaders\\shader.vert", "Shaders\\shader.frag");
+        triangulationShaders.BuildFiles("Shaders\\Passthrough.vert", "Shaders\\SimpleTexture.frag", "Shaders\\shader.geometry");
+    }
     
 
     // clear scene
@@ -141,9 +195,18 @@ void drawNewFrame()
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     // render plane under argument object (also used for testing as a plane to render depth map to)
-    glBindVertexArray(planeVao);
+    glBindVertexArray(teapotPlaneVao);
     planeShaders.Bind();
     glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    if (spacebarToggle)
+    {
+        // draw triangulation plane
+        glBindVertexArray(teapotPlaneVao);
+        triangulationShaders.Bind();
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+    }
+
     glutSwapBuffers();
     return;
 }
@@ -165,6 +228,10 @@ void keyboardInterrupt(unsigned char key, int x, int y)
     case 27:
         std::cout << "User pressed escape key.\n";
         glutLeaveMainLoop();
+        break;
+    case 32:
+        std::cout << "User pressed spacebar.\n";
+        spacebarToggle = !spacebarToggle;
         break;
     }
     return;
@@ -258,7 +325,7 @@ void idleCallback()
     cy::Matrix4f view = cy::Matrix4f::View(viewPos, cy::Vec3f(0.0f, 0.0f, 0.0f), cy::Vec3f(0.0f, 1.0f, 0.0f));
     cy::Matrix4f projMatrix = cy::Matrix4f::Perspective(DEG2RAD(40), float(windowWidth) / float(windowHeight), 0.1f, 1000.0f);
 
-    cy::Vec3f lightPos = cy::Vec3f(0.0f, 100.0f, 20.0f);
+    cy::Vec3f lightPos = cy::Vec3f(0.0f, 100.0f, 0.0f);
     
     // rotate the plane from vertical to horizontal
     cy::Matrix3f planeRotation = cy::Matrix3f::RotationXYZ(DEG2RAD(90.0f), 0.0f, 0.0f);
@@ -273,6 +340,9 @@ void idleCallback()
     planeShaders["projection"] = projMatrix;
     planeShaders["lightPos"] = lightPos;
 
+    // define matrix to move the plane slightly forward
+    cy::Matrix4f bringForward = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, 0.01f));
+    triangulationShaders["mvp"] = projMatrix * view * bringForward * planeScale;
 
     // Tell GLUT to redraw
     glutPostRedisplay();
@@ -315,7 +385,7 @@ void createOpenGLWindow(int width, int height)
 /// <summary>
 /// Readies the linked Vao to be rendered as a plane in the scene
 /// </summary>
-void createScenePlane()
+void createScenePlane(GLuint& planeVao)
 {
     GLuint planeVbo;
     GLuint planeNBuffer;
@@ -386,15 +456,6 @@ void createScenePlane()
     glBufferData(GL_ARRAY_BUFFER, sizeof(planeTxcArray), planeTxcArray, GL_STATIC_DRAW);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
     glEnableVertexAttribArray(2);
-
-    int width = 0; int height = 0;
-    std::vector<char> texture;
-
-    // create texture buffer now - load the normal map as a texture
-    tex.Initialize();
-    tex.SetImage(&texture[0], 4, width, height);
-    tex.BuildMipmaps();
-    tex.Bind(0);
 }
 
 
