@@ -6,19 +6,13 @@ in vec3 Normal;
 in vec3 FragPos;
 in vec2 texCoord;
 in vec3 camPos;
-in vec3 reflection;
-in vec4 shadowCoord;
 
 layout(location = 0) out vec4 color;
 
 // uniform vec3 objColor;
 // uniform vec3 lightColor;
 uniform vec3 lightPos;
-uniform samplerCube env;
-uniform sampler2DShadow shadowMap;
 
-
-//vec4 texColor = texture(env, reflection);
 vec4 texColor = vec4(1,0,0,1);
 vec3 objColor = texColor.rgb;
 float alpha = texColor.a;
@@ -58,7 +52,4 @@ void main()
 	// calculate color of obj without shadows
 	vec3 result = (ambient + diffuse) * objColor  + specular;
 	color = vec4(result, alpha);
-
-	// add shadow effect to object
-	color *= textureProj(shadowMap, shadowCoord);
 }
