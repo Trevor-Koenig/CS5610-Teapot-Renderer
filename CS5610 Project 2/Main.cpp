@@ -28,6 +28,7 @@ void drawNewFrame();
 void keyboardInterrupt(unsigned char key, int x, int y);
 void mouseButtonTracker(int button, int state, int x, int y);
 void mouseClickDrag(int x, int y);
+void specialInput(int key, int x, int y);
 void idleCallback();
 void createScenePlane(GLuint& planeVao);
 void setRotationAndDistance(float& xRot, float& yRot, float& zRot, float& distance);
@@ -35,7 +36,9 @@ float DEG2RAD(float degrees);
 
 bool leftMouse, rightMouse, spacebarToggle;
 bool altMouseDrag;
+bool useTesselation;
 int mouseX, mouseY;
+unsigned short int tessLevel;
 int windowWidth, windowHeight;
 GLuint teapotPlaneVao;
 GLuint triangulationVao;
@@ -56,7 +59,9 @@ int main(int argc, char* argv[])
     leftMouse = false; rightMouse = false;
     spacebarToggle = false;
     altMouseDrag = false;
+    useTesselation = false;
     mouseX = 0; mouseY = 0;
+    tessLevel = 1;
 
     // if there is not a png normal map then exit - simple check
     if (argc < 2) { exit(0); }
@@ -91,6 +96,7 @@ int main(int argc, char* argv[])
     glutIdleFunc(idleCallback);
     glutMouseFunc(mouseButtonTracker);
     glutMotionFunc(mouseClickDrag);
+    glutSpecialFunc(specialInput);
 
     // OpenGL initializations
     GLclampf Red = 0.0f, Green = 0.0f, Blue = 0.0f, Alpha = 0.0f; // sourced from: https://youtu.be/6dtqg0r28Yc
@@ -115,14 +121,14 @@ int main(int argc, char* argv[])
     normTex.BuildMipmaps();
     normTex.Bind(0);
 
-    bool useTesselation = false;
     if (argc > 2)
     {
+        std::cout << "Using tessellation shaders." << std::endl;
         // intialize textures
         unsigned int width = 0; unsigned int height = 0;
         std::vector<unsigned char> dispTexture;
-        std::cout << argv[1] << std::endl;
-        std::string filename = argv[1];
+        std::cout << argv[2] << std::endl;
+        std::string filename = argv[2];
 
         unsigned error = lodepng::decode(dispTexture, width, height, filename);
         // create displacement texture buffer now - load the depth map as a texture
@@ -135,7 +141,7 @@ int main(int argc, char* argv[])
         useTesselation = true;
     }
 
-    
+    // useTesselation = false;
     /**
     * 
     * Compile shaders
@@ -145,29 +151,35 @@ int main(int argc, char* argv[])
     
     if (useTesselation)
     {
-        planeShaders.BuildFiles("Shaders\\shader.vert",
+        planeShaders.BuildFiles("Shaders\\passthrough.vert",
                                 "Shaders\\shader.frag",
-                                "",
-                                "Shaders\\shader.tesscontrol"
+                                (const char*)nullptr,
+                                "Shaders\\shader.tessc",
+                                "Shaders\\shader.tesse"
                                 );
-        triangulationShaders.BuildFiles("Shaders\\Passthrough.vert",
+        triangulationShaders.BuildFiles("Shaders\\passthrough.vert",
                                         "Shaders\\SimpleTexture.frag",
-                                        "Shaders\\shader.geometry",
-                                        "Shaders\\shader.tesscontrol"
+                                        "Shaders\\wire.geom",
+                                        "Shaders\\shader.tessc",
+                                        "Shaders\\shader.tesse"
                                         );
     }
     else
     {
         planeShaders.BuildFiles("Shaders\\shader.vert", "Shaders\\shader.frag");
-        triangulationShaders.BuildFiles("Shaders\\Passthrough.vert", "Shaders\\SimpleTexture.frag", "Shaders\\shader.geometry");
+        triangulationShaders.BuildFiles("Shaders\\Passthrough.vert", "Shaders\\SimpleTexture.frag", "Shaders\\wire.geom");
     }
     
+    // specify patches for tesselations
+    glPatchParameteri(GL_PATCH_VERTICES, 4);
 
     // clear scene
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 
     std::cout << "Finished drawing first frame. Entering main loop\n";
+    char t;
+    //std::cin >> t;
     // Call main loop
     glutMainLoop();
     return 0;
@@ -197,14 +209,28 @@ void drawNewFrame()
     // render plane under argument object (also used for testing as a plane to render depth map to)
     glBindVertexArray(teapotPlaneVao);
     planeShaders.Bind();
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    if (useTesselation)
+    {
+        glDrawArrays(GL_PATCHES, 0, 4);
+    }
+    else
+    {
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+    }
 
     if (spacebarToggle)
     {
         // draw triangulation plane
         glBindVertexArray(teapotPlaneVao);
         triangulationShaders.Bind();
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+        if (useTesselation)
+        {
+            glDrawArrays(GL_PATCHES, 0, 4);
+        }
+        else
+        {
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
     }
 
     glutSwapBuffers();
@@ -286,6 +312,27 @@ void mouseClickDrag(int x, int y)
     return;
 }
 
+/// <summary>
+/// method sourced from: https://community.khronos.org/t/what-are-the-codes-for-arrow-keys-to-use-in-glut-keyboard-callback-function/26457
+/// </summary>
+void specialInput(int key, int x, int y)
+{
+    int maxTesselation = 32;
+
+    switch (key)
+    {
+    case GLUT_KEY_LEFT:
+        // by casting to unsigned char first we clamp tessLevel between 0 and 255
+        tessLevel = cy::Clamp((int)(--tessLevel), 1, maxTesselation);
+        std::cout << "Decreased tesselation level to: " << tessLevel << std::endl;
+        break;
+    case GLUT_KEY_RIGHT:
+        tessLevel = tessLevel = cy::Clamp((int)(++tessLevel), 1, maxTesselation);
+        std::cout << "Increased tesselation level to: " << tessLevel << std::endl;
+        break;
+    }
+}
+
 
 /**
 *
@@ -318,7 +365,7 @@ void idleCallback()
     cy::Matrix3f rotMatrix = cy::Matrix3f::RotationXYZ(-xRot, -yRot, zRot);
     cy::Matrix4f scaleMatrix = cy::Matrix4f::Scale(cy::Vec3f(distance, distance, distance));
     // for teapot
-    cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, -5.5f, 0.0f));
+    cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, -50.0f, 0.0f));
     // for teapot
     // cy::Matrix4f trans = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, 0.0f));
     cy::Vec3f viewPos = (rotMatrix * cy::Vec3f(0.0f, 0.0f, 100.0f)) * distance;
@@ -334,15 +381,25 @@ void idleCallback()
     // define the scale of the teapot to fit the size of the current scene objects
     cy::Matrix4f planeScale = cy::Matrix4f::Scale(cy::Vec3f(0.3f, 0.3f, 0.3f));
     
-    planeShaders["viewPos"] = viewPos;
+    planeShaders["vModel"] = planeScale;
     planeShaders["model"] = planeScale;
     planeShaders["view"] = view;
     planeShaders["projection"] = projMatrix;
     planeShaders["lightPos"] = lightPos;
+    planeShaders["camPos"] = viewPos;
 
     // define matrix to move the plane slightly forward
-    cy::Matrix4f bringForward = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, 0.01f));
-    triangulationShaders["mvp"] = projMatrix * view * bringForward * planeScale;
+    cy::Matrix4f bringForward = cy::Matrix4f::Translation(cy::Vec3f(0.0f, 0.0f, 0.1f));
+    triangulationShaders["vModel"] = bringForward * planeScale;
+    triangulationShaders["model"] = bringForward * planeScale;
+    triangulationShaders["view"] = view;
+    triangulationShaders["projection"] = projMatrix;
+
+    if (useTesselation)
+    {
+        planeShaders["tessLevel"] = (float)tessLevel;
+        triangulationShaders["tessLevel"] = (float)tessLevel;
+    }
 
     // Tell GLUT to redraw
     glutPostRedisplay();
@@ -374,7 +431,7 @@ void createOpenGLWindow(int width, int height)
     glutInitWindowSize(width, height);
     glutInitWindowPosition(100, 50);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
-    glutCreateWindow("CS 5610 Project 8 - Tesselation\tTrevor Koenig");
+    glutCreateWindow("CS 5610 Project 8 - Tessellation\tTrevor Koenig");
     glEnable(GL_DEPTH_TEST);
 
     const char* versionGL = (const char*)glGetString(GL_VERSION);
@@ -396,8 +453,6 @@ void createScenePlane(GLuint& planeVao)
     float planeVert[] = {
         100.0,  100.0, 0.0,
        -100.0,  100.0, 0.0,
-        100.0, -100.0, 0.0,
-       -100.0,  100.0, 0.0,
        -100.0, -100.0, 0.0,
         100.0, -100.0, 0.0
     };
@@ -408,25 +463,19 @@ void createScenePlane(GLuint& planeVao)
         0.0, 0.0, 1.0,
         0.0, 0.0, 1.0,
         0.0, 0.0, 1.0,
-        0.0, 0.0, 1.0,
-        0.0, 0.0, 1.0,
-        0.0, 0.0, 1.0
     };
 
     // define plane faces
     int planeFaces[] = {
-        0, 1, 2,
-        3, 4, 5
+        0, 1, 2, 3,
     };
 
     // define texture coordinates
     float planeTxcArray[] = {
         1.0, 1.0,
         0.0, 1.0,
-        1.0, 0.0,
-        0.0, 1.0,
         0.0, 0.0,
-        1.0, 0.0
+        1.0, 0.0,
     };
 
     // create plane plane VAO and vbo
@@ -434,14 +483,14 @@ void createScenePlane(GLuint& planeVao)
     glBindVertexArray(planeVao);
     glGenBuffers(1, &planeVbo);
     glBindBuffer(GL_ARRAY_BUFFER, planeVbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(planeVert), planeVert, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 12, &planeVert[0], GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
     glEnableVertexAttribArray(0);
 
     // create plane normal buffer
     glGenBuffers(1, &planeNBuffer);
     glBindBuffer(GL_ARRAY_BUFFER, planeNBuffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(planeNorms), planeNorms, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 12, &planeNorms[0], GL_STATIC_DRAW);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
     glEnableVertexAttribArray(1);
 
@@ -453,7 +502,7 @@ void createScenePlane(GLuint& planeVao)
     // create texture coordinates buffer
     glGenBuffers(1, &planeTxc);
     glBindBuffer(GL_ARRAY_BUFFER, planeTxc);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(planeTxcArray), planeTxcArray, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 8, &planeTxcArray[0], GL_STATIC_DRAW);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
     glEnableVertexAttribArray(2);
 }

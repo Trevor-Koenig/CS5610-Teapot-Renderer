@@ -32,6 +32,8 @@
     <None Include="Shaders\shader.frag" />
     <None Include="Shaders\Passthrough.vert" />
     <None Include="Shaders\SimpleTexture.frag" />
-    <None Include="Shaders\shader.geometry" />
+    <None Include="Shaders\shader.geom" />
+    <None Include="Shaders\shader.tessc" />
+    <None Include="Shaders\shader.tesse" />
   </ItemGroup>
 </Project>
