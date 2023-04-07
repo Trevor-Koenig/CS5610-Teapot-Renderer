@@ -44,7 +44,7 @@ GLuint teapotPlaneVao;
 GLuint triangulationVao;
 cy::GLSLProgram planeShaders;
 cy::GLSLProgram triangulationShaders;
-cyGLTexture2D normTex;
+cyGLTexture2D normMap;
 cyGLTexture2D dispTex;
 
 
@@ -116,10 +116,11 @@ int main(int argc, char* argv[])
     unsigned error = lodepng::decode(normTexture, width, height, filename);
 
     // create normal texture buffer now - load the normal map as a texture
-    normTex.Initialize();
-    normTex.SetImage(&normTexture[0], 4, width, height);
-    normTex.BuildMipmaps();
-    normTex.Bind(0);
+    normMap.Initialize();
+    normMap.Bind(0);
+    normMap.SetImage(&normTexture[0], 4, width, height);
+    normMap.BuildMipmaps();
+    glUniform1i(glGetUniformLocation(planeShaders.GetID(), "normMap"), 0);
 
     if (argc > 2)
     {
@@ -133,9 +134,10 @@ int main(int argc, char* argv[])
         unsigned error = lodepng::decode(dispTexture, width, height, filename);
         // create displacement texture buffer now - load the depth map as a texture
         dispTex.Initialize();
+        dispTex.Bind(1);
         dispTex.SetImage(&dispTexture[0], 4, width, height);
         dispTex.BuildMipmaps();
-        dispTex.Bind(0);
+        glUniform1i(glGetUniformLocation(planeShaders.GetID(), "gDisplacementMap"), 1);
 
         // since a displacement texture was found we will also use tesselation shaders
         useTesselation = true;
@@ -171,7 +173,7 @@ int main(int argc, char* argv[])
     }
     
     // specify patches for tesselations
-    glPatchParameteri(GL_PATCH_VERTICES, 4);
+    glPatchParameteri(GL_PATCH_VERTICES, 3);
 
     // clear scene
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -211,7 +213,7 @@ void drawNewFrame()
     planeShaders.Bind();
     if (useTesselation)
     {
-        glDrawArrays(GL_PATCHES, 0, 4);
+        glDrawArrays(GL_PATCHES, 0, 6);
     }
     else
     {
@@ -225,7 +227,7 @@ void drawNewFrame()
         triangulationShaders.Bind();
         if (useTesselation)
         {
-            glDrawArrays(GL_PATCHES, 0, 4);
+            glDrawArrays(GL_PATCHES, 0, 6);
         }
         else
         {
@@ -317,7 +319,7 @@ void mouseClickDrag(int x, int y)
 /// </summary>
 void specialInput(int key, int x, int y)
 {
-    int maxTesselation = 32;
+    int maxTesselation = 100;
 
     switch (key)
     {
@@ -453,8 +455,10 @@ void createScenePlane(GLuint& planeVao)
     float planeVert[] = {
         100.0,  100.0, 0.0,
        -100.0,  100.0, 0.0,
+        100.0, -100.0, 0.0,
+       -100.0,  100.0, 0.0,
        -100.0, -100.0, 0.0,
-        100.0, -100.0, 0.0
+        100.0, -100.0, 0.0,
     };
 
     // define plane normals
@@ -463,19 +467,24 @@ void createScenePlane(GLuint& planeVao)
         0.0, 0.0, 1.0,
         0.0, 0.0, 1.0,
         0.0, 0.0, 1.0,
+        0.0, 0.0, 1.0,
+        0.0, 0.0, 1.0,
     };
 
     // define plane faces
     int planeFaces[] = {
-        0, 1, 2, 3,
+        0, 1, 2,
+        3, 4, 5,
     };
 
     // define texture coordinates
     float planeTxcArray[] = {
-        1.0, 1.0,
-        0.0, 1.0,
-        0.0, 0.0,
         1.0, 0.0,
+        0.0, 0.0,
+        1.0, 1.0,
+        0.0, 0.0,
+        0.0, 1.0,
+        1.0, 1.0,
     };
 
     // create plane plane VAO and vbo
@@ -483,14 +492,14 @@ void createScenePlane(GLuint& planeVao)
     glBindVertexArray(planeVao);
     glGenBuffers(1, &planeVbo);
     glBindBuffer(GL_ARRAY_BUFFER, planeVbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 12, &planeVert[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(planeVert), &planeVert[0], GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
     glEnableVertexAttribArray(0);
 
     // create plane normal buffer
     glGenBuffers(1, &planeNBuffer);
     glBindBuffer(GL_ARRAY_BUFFER, planeNBuffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 12, &planeNorms[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(planeNorms), &planeNorms[0], GL_STATIC_DRAW);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
     glEnableVertexAttribArray(1);
 
@@ -502,7 +511,7 @@ void createScenePlane(GLuint& planeVao)
     // create texture coordinates buffer
     glGenBuffers(1, &planeTxc);
     glBindBuffer(GL_ARRAY_BUFFER, planeTxc);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 8, &planeTxcArray[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(planeTxcArray), &planeTxcArray[0], GL_STATIC_DRAW);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
     glEnableVertexAttribArray(2);
 }

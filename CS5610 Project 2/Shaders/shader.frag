@@ -6,12 +6,11 @@ in vec3 FragPos;
 in vec2 TexCoord_FS_in;
 in vec3 Normal_FS_in;
 in vec3 WorldPos_FS_in;
-//in float tessCoord;
 
 layout(location = 0) out vec4 color;
 
 // define a vector which translates texture coordinates to vertex space
-vec2 normCoord = vec2(TexCoord_FS_in.x, 1-TexCoord_FS_in.y);
+vec2 normCoord = vec2(TexCoord_FS_in.x, TexCoord_FS_in.y);
 
 // uniform vec3 objColor;
 // uniform vec3 lightColor;
@@ -65,6 +64,7 @@ void main()
 
 	// debugging
 	//color = vec4(WorldPos_FS_in, alpha);
-	color = vec4(Normal_FS_in, alpha);
+	// color = vec4(Normal_FS_in, alpha);
 	// color = vec4(TexCoord_FS_in, 0, alpha);
+	color = vec4(normal, 0.0);
 }

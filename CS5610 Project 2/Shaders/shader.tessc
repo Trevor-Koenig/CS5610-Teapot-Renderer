@@ -2,7 +2,7 @@
 
 // shader from: https://ogldev.org/www/tutorial30/tutorial30.html
 
-layout ( vertices = 4 ) out;
+layout ( vertices = 3 ) out;
 
 uniform float tessLevel;
 
@@ -26,8 +26,6 @@ void main()
 	gl_TessLevelOuter[0] = tessLevel;
 	gl_TessLevelOuter[1] = tessLevel;
 	gl_TessLevelOuter[2] = tessLevel;
-	gl_TessLevelOuter[3] = tessLevel;
 
 	gl_TessLevelInner[0] = tessLevel;
-	gl_TessLevelInner[1] = tessLevel;
 }
