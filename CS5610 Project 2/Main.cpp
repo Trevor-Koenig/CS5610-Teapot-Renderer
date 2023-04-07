@@ -117,9 +117,9 @@ int main(int argc, char* argv[])
 
     // create normal texture buffer now - load the normal map as a texture
     normMap.Initialize();
-    normMap.Bind(0);
     normMap.SetImage(&normTexture[0], 4, width, height);
     normMap.BuildMipmaps();
+    normMap.Bind(0);
     glUniform1i(glGetUniformLocation(planeShaders.GetID(), "normMap"), 0);
 
     if (argc > 2)
@@ -134,9 +134,9 @@ int main(int argc, char* argv[])
         unsigned error = lodepng::decode(dispTexture, width, height, filename);
         // create displacement texture buffer now - load the depth map as a texture
         dispTex.Initialize();
-        dispTex.Bind(1);
         dispTex.SetImage(&dispTexture[0], 4, width, height);
         dispTex.BuildMipmaps();
+        dispTex.Bind(1);
         glUniform1i(glGetUniformLocation(planeShaders.GetID(), "gDisplacementMap"), 1);
 
         // since a displacement texture was found we will also use tesselation shaders
